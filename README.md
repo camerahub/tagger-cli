@@ -17,13 +17,3 @@ else prompt user to identify the scan
 lookup scan id in API
 prepare diff of tags
 if non-zero diff, ask user to confirm tag write
-
-
-
-
-args we might need:
--r	--recursive	search for scans recursively
--a	--auto		don't prompt user to identify scans, only guess based on filename
--y	--yes		accept all changes
--d	--dry-run	don't write any tags
--c	--config	path to config file, default ~/.camerahub
