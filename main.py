@@ -109,13 +109,6 @@ def is_valid_uuid(uuid_to_test, version=4):
      Returns
     -------
     `True` if uuid_to_test is a valid UUID, otherwise `False`.
-    
-     Examples
-    --------
-    >>> is_valid_uuid('c9bf9e57-1685-4c89-bafb-ff5af830be8a')
-    True
-    >>> is_valid_uuid('c9bf9e58')
-    False
     """
     
     try:
@@ -136,14 +129,9 @@ def prompt_frame(file):
     return (film, frame)
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
-    print_hi('PyCharm')
+    print("CameraHub Tagger")
 
     # Determine path to config file
     home = os.path.expanduser("~")
@@ -154,8 +142,6 @@ if __name__ == '__main__':
     server = get_setting(path, 'Settings', 'server')
     username = get_setting(path, 'Settings', 'username')
     password = get_setting(path, 'Settings', 'password')
-
-    #update_setting(path, "Settings", "font_size", "12")
 
     # Test the credentials we have
     if test_credentials(server, username, password):
