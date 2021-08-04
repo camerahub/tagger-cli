@@ -130,6 +130,11 @@ def guess_frame(filename):
     return (m.group(0), m.group(1))
         
 
+def prompt_frame(file):
+    film = input("Enter film ID for {}: ".format(file))
+    frame = input("Enter frame ID for {}: ".format(film))
+    return (film, frame)
+
 
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
@@ -204,16 +209,20 @@ for file in files:
     else:
         # need to match it with a neg/print and generate a scan id
         print("{} does not have an EXIF scan ID".format(file))
-            
 
         # else prompt user to identify the scan
         #	guess film/frame from filename
         (film, frame) = guess_frame(file)
         #	either accept film/frame or just film then prompt frame
+        if isinstance(film, int) and isinstance(frame, str):
+            # lookup neg id from API
+        else:
+            (film, frame) = prompt_frame(file)
+            # prompt user for film/frame
+
         #	generate scan id
+        #   lookup extended scan details in API
 
 
-
-# lookup scan id in API
-# prepare diff of tags
-# if non-zero diff, ask user to confirm tag write
+        # prepare diff of tags
+        # if non-zero diff, ask user to confirm tag write
