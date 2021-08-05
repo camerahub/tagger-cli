@@ -1,15 +1,17 @@
-# CameraHub Tagger
+"""
+CameraHub Tagger
+"""
 
 import configparser
 import argparse
 import os
+import sys
 import getpass
-import requests
 import re
-from requests.auth import HTTPBasicAuth
 from fnmatch import filter
-from exif import Image
 from uuid import UUID
+from exif import Image
+import requests
 
 
 
@@ -24,18 +26,18 @@ def create_config(path):
     print("Enter your login details for CameraHub.")
 
     try:
-        u = input("Enter CameraHub username: ")
+        username = input("Enter CameraHub username: ")
     except Exception as error:
         print('ERROR', error)
     else:
-        config.set("Settings", "username", u)
+        config.set("Settings", "username", username)
 
     try:
-        p = getpass.getpass(prompt="Enter CameraHub password: ")
+        password = getpass.getpass(prompt="Enter CameraHub password: ")
     except Exception as error:
         print('ERROR', error)
     else:
-        config.set("Settings", "password", p)
+        config.set("Settings", "password", password)
 
     with open(path, "w") as config_file:
         config.write(config_file)
@@ -55,13 +57,10 @@ def get_config(path):
 
 def get_setting(path, section, setting):
     """
-    Print out a setting
+    Get the value of a config setting
     """
     config = get_config(path)
     value = config.get(section, setting)
-    print
-    "{section} {setting} is {value}".format(
-        section=section, setting=setting, value=value)
     return value
 
 
@@ -84,33 +83,28 @@ def test_credentials(server, username, password):
     :return: Bool
     """
 
-    r = requests.get(
+    response = requests.get(
             server+'/camera',
-            auth=('username', 'password')
+            auth=(username, password)
         )
 
-    if r.status_code == 200:
-        rv = True
-    else:
-        rv = False
-
-    return rv
+    return bool(response.status_code == 200)
 
 
 def is_valid_uuid(uuid_to_test, version=4):
     """
     Check if uuid_to_test is a valid UUID.
-    
-     Parameters
+
+    Parameters
     ----------
     uuid_to_test : str
     version : {1, 2, 3, 4}
-    
-     Returns
+
+    Returns
     -------
     `True` if uuid_to_test is a valid UUID, otherwise `False`.
     """
-    
+
     try:
         uuid_obj = UUID(uuid_to_test, version=version)
     except ValueError:
@@ -119,15 +113,82 @@ def is_valid_uuid(uuid_to_test, version=4):
 
 
 def guess_frame(filename):
-    m = re.search('^(\d+)-(\d+).*\.jpe?g$', filename.lower())
+    """
+    Guess a negative's film id and frame id based on its filename
+    Assumes a format of [film]-[frame]-title.jpg
+    for example 123-22-holiday.jpg
+    """
+    m = re.search(r'^(\d+)-(\d+).*\.jpe?g$', filename.lower())
     return (m.group(0), m.group(1))
-        
+
 
 def prompt_frame(file):
+    """
+    Prompt user to enter film id and frame id
+    At the moment these questions are asked sequentially
+    TODO: be able to parse compact film/frame format
+    """
     film = input("Enter film ID for {}: ".format(file))
     frame = input("Enter frame ID for {}: ".format(film))
     return (film, frame)
 
+def create_scan(negative):
+    """
+    Create a new Scan record in CameraHub, associated with the Negative record
+    """
+    scan = None
+    return scan
+
+
+def get_scan(scan):
+    """
+    Get all details about a scan record in CameraHub
+    """
+    print(scan)
+    return scan
+
+def get_negative(film, frame):
+    """
+    Find the negative ID for a negative based on its film ID and frame ID
+    """
+    print(film)
+    print(frame)
+    return film
+
+
+def api2exif(apidata):
+    """
+    Reformat CameraHub format tags into EXIF format tags.
+    CameraHub tags from the API will be JSON-formatted whereas EXIF
+    tags are formatted as a simple dictionary.
+    """
+    return
+
+
+def diff_tags(dicta, dictb):
+    """
+    Compare two dictionaries of EXIF tags and return a dictionary which contains
+    the diff required to apply b's data to a, without destroying data in a.
+    This uses a symmetric difference operator:
+    https://docs.python.org/3/library/stdtypes.html#frozenset.symmetric_difference
+    """
+    seta = set(dicta.items())
+    setb = set(dictb.items())
+    return dict(seta ^ setb)
+
+
+def yes_or_no(question):
+    """
+    Prompt for a yes/no answer
+    https://gist.github.com/garrettdreyfus/8153571#gistcomment-2586248
+    """
+    answer = input(question + "(y/n): ").lower().strip()
+    print("")
+    while not answer in ('y', 'yes', 'n', 'no'):
+        print("Input yes or no")
+        answer = input(question + "(y/n):").lower().strip()
+        print("")
+    return bool(answer[0] == "y")
 
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
@@ -144,11 +205,12 @@ if __name__ == '__main__':
     password = get_setting(path, 'Settings', 'password')
 
     # Test the credentials we have
-    if test_credentials(server, username, password):
-        print("Creds OK")
-    else:
+    try:
+        test_credentials(server, username, password)
+    except:
         print("Creds not OK")
-
+    else:
+        print("Creds OK")
 
     # Read in args
     parser = argparse.ArgumentParser()
@@ -161,54 +223,76 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-# if no args, scan current folder. consider recursive option
-# elsif load individual frame
-# or quit if none
+    # if no args, scan current folder. consider recursive option
+    # elsif load individual frame
+    # or quit if none
 
-files = []
-if args.file:
-    files.append(args.file)
-elif args.recursive:
-    # recursive search here
-    pass
-else:
-    files = filter(os.listdir('.'), '*.[Jj][Pp][Gg]')
-
-if len(files) == 0:
-    print("No files found")
-    exit
-
-# foreach found photo:
-# read exif data, check for camerahub scan tag
-for file in files:
-    #print("Found file: {}".format(file))
-
-    # Extract exif data from file
-    with open(file, 'rb') as image_file:
-        image = Image(image_file)
-
-    if image.has_exif is True and image.image_unique_id and is_valid_uuid(image.image_unique_id):
-        # check for presence of custom exif tag for camerahub
-        # ImageUniqueID, UserComment, Comment
-        # already has a uuid scan id
-        print("{} already has an EXIF scan ID".format(file))
+    files = []
+    if args.file:
+        files.append(args.file)
+    elif args.recursive:
+        # recursive search here
+        pass
     else:
-        # need to match it with a neg/print and generate a scan id
-        print("{} does not have an EXIF scan ID".format(file))
+        files = filter(os.listdir('.'), '*.[Jj][Pp][Gg]')
 
-        # else prompt user to identify the scan
-        #	guess film/frame from filename
-        (film, frame) = guess_frame(file)
-        #	either accept film/frame or just film then prompt frame
-        if isinstance(film, int) and isinstance(frame, str):
-            # lookup neg id from API
+    if len(files) == 0:
+        print("No files found")
+        sys.exit
+
+    # foreach found photo:
+    # read exif data, check for camerahub scan tag
+    for file in files:
+        print("Processing image {}".format(file))
+
+        # Extract exif data from file
+        with open(file, 'rb') as image_file:
+            image = Image(image_file)
+
+        if image.has_exif is True and image.get("image_unique_id") and is_valid_uuid(image.image_unique_id):
+            # check for presence of custom exif tag for camerahub
+            # ImageUniqueID, UserComment, Comment
+            # already has a uuid scan id
+            print("{} already has an EXIF scan ID".format(file))
         else:
-            (film, frame) = prompt_frame(file)
-            # prompt user for film/frame
+            # need to match it with a neg/print and generate a scan id
+            print("{} does not have an EXIF scan ID".format(file))
 
-        #	generate scan id
-        #   lookup extended scan details in API
+            # else prompt user to identify the scan
+            #	guess film/frame from filename
+            film, frame = guess_frame(file)
+            #	either accept film/frame or just film then prompt frame
+            if isinstance(film, int) and isinstance(frame, str):
+                # lookup neg id from API
+                negative = get_negative(film, frame)
+            else:
+                film, frame = prompt_frame(file)
+                # prompt user for film/frame
 
+            #	generate scan id
+            scan = create_scan(negative)
 
-        # prepare diff of tags
-        # if non-zero diff, ask user to confirm tag write
+            #   lookup extended scan details in API
+            apidata = get_scan(scan)
+
+            # mangle CameraHub format tags into EXIF format tags
+            exifdata = api2exif(apidata)
+
+            # prepare diff of tags
+            diff = diff_tags(image, exifdata)
+
+            # if non-zero diff, ask user to confirm tag write
+            if len(diff.keys) > 0:
+                # print diff & confirm write
+                print(diff)
+
+                if not args.dry_run and yes_or_no("Write this metadata to the file?"):
+
+                    # Apply the diff to the image
+                    for key, value in diff.items():
+                        image.set(key, value)
+
+                    # do the write
+                    with open(file, 'wb') as image_file:
+                        image = Image(image_file)
+                        image_file.write(image.get_file())
