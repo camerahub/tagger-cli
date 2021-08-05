@@ -8,6 +8,7 @@ import os
 import sys
 import getpass
 import re
+import json
 from fnmatch import filter
 from uuid import UUID
 from exif import Image
@@ -135,17 +136,33 @@ def prompt_frame(file):
 def create_scan(negative):
     """
     Create a new Scan record in CameraHub, associated with the Negative record
+    POST to https://camerahub.info/api/scan/
+    {
+        "negative": null,
+        "print": null,
+        "filename": "",
+        "date": null
+    }
     """
-    scan = None
-    return scan
+
+    # Create dict
+    data = {'negative': negative}
+    url = 'https://dev.camerahub.info/api/scan/'
+    response = requests.post(url, data = data)
+    # TODO: extract new scan id from response
+
+    return response
 
 
 def get_scan(scan):
     """
     Get all details about a scan record in CameraHub
+    GET https://dev.camerahub.info/api/scan/?uuid=07c1c01c-0092-4025-8b0f-4513ff6d327b
+    or POST a json object
     """
     print(scan)
     return scan
+
 
 def get_negative(film, frame):
     """
