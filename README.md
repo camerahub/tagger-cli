@@ -1,19 +1,30 @@
-check for config/creds
-if none, prompt to create and test
+# CameraHub Tagger
 
-if no args, scan current folder. consider recursive option
-elsif load individual frame
-or quit if none
+Command-line app to tag JPG scans of negatives with EXIF metadata from the CameraHub API.
+This means you can organise your film scans in a digital photo management app with full metadata.
 
-foreach found photo:
-read exif data, check for camerahub scan tag
+## Installation
 
-if has existing scan
-else prompt user to identify the scan
-	guess film/frame from filename
-	either accept film/frame or just film then prompt frame
-	generate scan id
+This app will be available on PyPI when it is finished.
 
-lookup scan id in API
-prepare diff of tags
-if non-zero diff, ask user to confirm tag write
+## Usage
+
+### `-r --recursive`
+
+Search for scans recursively
+
+### `-a --auto`
+
+Don't prompt user to identify scans, only guess based on filename
+
+### `-y --yes`
+
+Accept all changes
+
+### `-d --dry-run`
+
+Don't write any tags
+
+### `-f --file`
+
+Image file to be tagged
