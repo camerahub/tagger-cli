@@ -27,18 +27,18 @@ def create_config(path):
     print("Enter your login details for CameraHub.")
 
     try:
-        username = input("Enter CameraHub username: ")
+        l_username = input("Enter CameraHub username: ")
     except Exception as error:
         print('ERROR', error)
     else:
-        config.set("Settings", "username", username)
+        config.set("Settings", "username", l_username)
 
     try:
-        password = getpass.getpass(prompt="Enter CameraHub password: ")
+        l_password = getpass.getpass(prompt="Enter CameraHub password: ")
     except Exception as error:
         print('ERROR', error)
     else:
-        config.set("Settings", "password", password)
+        config.set("Settings", "password", l_password)
 
     with open(path, "w") as config_file:
         config.write(config_file)
@@ -60,22 +60,22 @@ def get_setting(path, section, setting):
     """
     Get the value of a config setting
     """
-    config = get_config(path)
-    value = config.get(section, setting)
-    return value
+    l_config = get_config(path)
+    l_value = l_config.get(section, setting)
+    return l_value
 
 
-def update_setting(path, section, setting, value):
+def update_setting(l_path, l_section, l_setting, l_value):
     """
     Update a setting
     """
-    config = get_config(path)
-    config.set(section, setting, value)
-    with open(path, "w") as config_file:
+    config = get_config(l_path)
+    config.set(l_section, l_setting, l_value)
+    with open(l_path, "w") as config_file:
         config.write(config_file)
 
 
-def test_credentials(server, username, password):
+def test_credentials(l_server, l_username, l_password):
     """
     Validate a set of credentials
     :param server:
@@ -85,8 +85,8 @@ def test_credentials(server, username, password):
     """
 
     response = requests.get(
-            server+'/camera',
-            auth=(username, password)
+            l_server+'/camera',
+            auth=(l_username, l_password)
         )
 
     return bool(response.status_code == 200)
@@ -119,21 +119,21 @@ def guess_frame(filename):
     Assumes a format of [film]-[frame]-title.jpg
     for example 123-22-holiday.jpg
     """
-    m = re.search(r'^(\d+)-(\d+).*\.jpe?g$', filename.lower())
-    return (m.group(0), m.group(1))
+    match = re.search(r'^(\d+)-(\d+).*\.jpe?g$', filename.lower())
+    return (match.group(0), match.group(1))
 
 
-def prompt_frame(file):
+def prompt_frame(filename):
     """
     Prompt user to enter film id and frame id
     At the moment these questions are asked sequentially
     TODO: be able to parse compact film/frame format
     """
-    film = input("Enter film ID for {}: ".format(file))
-    frame = input("Enter frame ID for {}: ".format(film))
-    return (film, frame)
+    l_film = input("Enter film ID for {}: ".format(filename))
+    l_frame = input("Enter frame ID for {}: ".format(l_film))
+    return (l_film, l_frame)
 
-def create_scan(negative):
+def create_scan(l_negative):
     """
     Create a new Scan record in CameraHub, associated with the Negative record
     POST to https://camerahub.info/api/scan/
@@ -146,7 +146,7 @@ def create_scan(negative):
     """
 
     # Create dict
-    data = {'negative': negative}
+    data = {'negative': l_negative}
     url = 'https://dev.camerahub.info/api/scan/'
     response = requests.post(url, data = data)
     # TODO: extract new scan id from response
@@ -154,32 +154,34 @@ def create_scan(negative):
     return response
 
 
-def get_scan(scan):
+def get_scan(l_scan):
     """
     Get all details about a scan record in CameraHub
     GET https://dev.camerahub.info/api/scan/?uuid=07c1c01c-0092-4025-8b0f-4513ff6d327b
     or POST a json object
     """
-    print(scan)
-    return scan
+    print(l_scan)
+    return l_scan
 
 
-def get_negative(film, frame):
+def get_negative(l_film, l_frame):
     """
     Find the negative ID for a negative based on its film ID and frame ID
     """
-    print(film)
-    print(frame)
-    return film
+    print(l_film)
+    print(l_frame)
+    return l_film
 
 
-def api2exif(apidata):
+def api2exif(l_apidata):
     """
     Reformat CameraHub format tags into EXIF format tags.
     CameraHub tags from the API will be JSON-formatted whereas EXIF
-    tags are formatted as a simple dictionary.
+    tags are formatted as a simple dictionary. This will also translate
+    tags that have different names.
     """
-    return
+    l_exifdata = l_apidata
+    return l_exifdata
 
 
 def diff_tags(dicta, dictb):
@@ -213,13 +215,13 @@ if __name__ == '__main__':
 
     # Determine path to config file
     home = os.path.expanduser("~")
-    path = os.path.join(home, "camerahub.ini")
+    configpath = os.path.join(home, "camerahub.ini")
 
     # Get our initial connection settings
     # Prompt the user to set them if they don't exist
-    server = get_setting(path, 'Settings', 'server')
-    username = get_setting(path, 'Settings', 'username')
-    password = get_setting(path, 'Settings', 'password')
+    server = get_setting(configpath, 'Settings', 'server')
+    username = get_setting(configpath, 'Settings', 'username')
+    password = get_setting(configpath, 'Settings', 'password')
 
     # Test the credentials we have
     try:
