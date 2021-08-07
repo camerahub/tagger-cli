@@ -120,7 +120,10 @@ def guess_frame(filename):
     for example 123-22-holiday.jpg
     """
     match = re.search(r'^(\d+)-(\d+).*\.jpe?g$', filename.lower())
+    if match:
     return (match.group(0), match.group(1))
+    else:
+        return
 
 
 def prompt_frame(filename):
