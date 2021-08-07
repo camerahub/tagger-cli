@@ -278,16 +278,14 @@ if __name__ == '__main__':
             # need to match it with a neg/print and generate a scan id
             print("{} does not have an EXIF scan ID".format(file))
 
-            # else prompt user to identify the scan
-            #	guess film/frame from filename
+            try:
+                # guess film/frame from filename
             film, frame = guess_frame(file)
-            #	either accept film/frame or just film then prompt frame
-            if isinstance(film, int) and isinstance(frame, str):
-                # lookup neg id from API
-                negative = get_negative(film, frame)
-            else:
+            except:
                 film, frame = prompt_frame(file)
-                # prompt user for film/frame
+
+            # lookup neg id from API
+            negative = get_negative(film, frame, username, password)
 
             #	generate scan id
             scan = create_scan(negative)
