@@ -136,7 +136,7 @@ def prompt_frame(filename):
     l_frame = input("Enter frame ID for {}: ".format(l_film))
     return (l_film, l_frame)
 
-def create_scan(l_negative):
+def create_scan(l_negative, l_username, l_password):
     """
     Create a new Scan record in CameraHub, associated with the Negative record
     POST to https://camerahub.info/api/scan/
@@ -150,14 +150,14 @@ def create_scan(l_negative):
 
     # Create dict
     data = {'negative': l_negative}
-    url = 'https://dev.camerahub.info/api/scan/'
-    response = requests.post(url, data = data)
+    url = args.server + '/scan/'
+    response = requests.post(url, data = data, auth=(l_username, l_password))
     # TODO: extract new scan id from response
 
     return response
 
 
-def get_scan(l_scan):
+def get_scan(l_scan, l_username, l_password):
     """
     Get all details about a scan record in CameraHub
     GET https://dev.camerahub.info/api/scan/?uuid=07c1c01c-0092-4025-8b0f-4513ff6d327b
@@ -167,7 +167,7 @@ def get_scan(l_scan):
     return l_scan
 
 
-def get_negative(l_film, l_frame):
+def get_negative(l_film, l_frame, l_username, l_password):
     """
     Find the negative ID for a negative based on its film ID and frame ID
     """
@@ -288,10 +288,10 @@ if __name__ == '__main__':
             negative = get_negative(film, frame, username, password)
 
             #	generate scan id
-            scan = create_scan(negative)
+            scan = create_scan(negative, username, password)
 
             #   lookup extended scan details in API
-            apidata = get_scan(scan)
+            apidata = get_scan(scan, username, password)
 
             # mangle CameraHub format tags into EXIF format tags
             exifdata = api2exif(apidata)
