@@ -22,7 +22,7 @@ def create_config(path):
     """
     config = configparser.ConfigParser()
     config.add_section("Settings")
-    config.set("Settings", "server", "https://camerahub.info/api")
+    config.set("Settings", "server", args.server)
 
     print("Enter your login details for CameraHub.")
 
@@ -217,11 +217,22 @@ if __name__ == '__main__':
     home = os.path.expanduser("~")
     configpath = os.path.join(home, "camerahub.ini")
 
+    # Read in args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-r', '--recursive', help="search for scans recursively", action='store_true')
+    parser.add_argument('-a', '--auto', help="don't prompt user to identify scans, only guess based on filename", action='store_true')
+    parser.add_argument('-y', '--yes', help="accept all changes", action='store_true')
+    parser.add_argument('-d', '--dry-run', help="don't write any tags", action='store_true')
+    parser.add_argument('-c', '--config', help="path to config file", default=configpath)
+    parser.add_argument('-f', '--file', help="image file to be tagged", type=str)
+    parser.add_argument('-s', '--server', help="CameraHub server to connect to", default="https://camerahub.info/api", type=str)
+    args = parser.parse_args()
+
     # Get our initial connection settings
     # Prompt the user to set them if they don't exist
-    server = get_setting(configpath, 'Settings', 'server')
-    username = get_setting(configpath, 'Settings', 'username')
-    password = get_setting(configpath, 'Settings', 'password')
+    server = get_setting(args.config, 'Settings', 'server')
+    username = get_setting(args.config, 'Settings', 'username')
+    password = get_setting(args.config, 'Settings', 'password')
 
     # Test the credentials we have
     try:
@@ -230,17 +241,6 @@ if __name__ == '__main__':
         print("Creds not OK")
     else:
         print("Creds OK")
-
-    # Read in args
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-r', '--recursive', help="search for scans recursively", action='store_true')
-    parser.add_argument('-a', '--auto', help="don't prompt user to identify scans, only guess based on filename", action='store_true')
-    parser.add_argument('-y', '--yes', help="accept all changes", action='store_true')
-    parser.add_argument('-d', '--dry-run', help="don't write any tags", action='store_true')
-    #parser.add_argument('-c', '--config', help="path to config file, default ~/.camerahub")
-    parser.add_argument('-f', '--file', help="image file to be tagged", type=str)
-    args = parser.parse_args()
-
 
     # if no args, scan current folder. consider recursive option
     # elsif load individual frame
