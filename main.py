@@ -235,12 +235,10 @@ if __name__ == '__main__':
     password = get_setting(args.config, 'Settings', 'password')
 
     # Test the credentials we have
-    try:
-        test_credentials(server, username, password)
-    except:
-        print("Creds not OK")
-    else:
+    if test_credentials(server, username, password):
         print("Creds OK")
+    else:
+        print("Creds not OK")
 
     # if no args, scan current folder. consider recursive option
     # elsif load individual frame
