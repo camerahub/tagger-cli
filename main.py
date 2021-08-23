@@ -120,7 +120,11 @@ def guess_frame(filename):
     for example 123-22-holiday.jpg
     """
     match = re.search(r'^(\d+)-(\d+).*\.jpe?g$', filename.lower())
-    return (match.group(0), match.group(1))
+    if match and match.group(0) and match.group(1):
+        returnval = (match.group(0), match.group(1))
+    else:
+        returnval = None
+    return returnval
 
 
 def prompt_frame(filename):
@@ -279,10 +283,16 @@ if __name__ == '__main__':
 
             # else prompt user to identify the scan
             #	guess film/frame from filename
-            film, frame = guess_frame(file)
-            #	either accept film/frame or just film then prompt frame
-            if isinstance(film, int) and isinstance(frame, str):
-                # lookup neg id from API
+            guess = guess_frame(file)
+            if guess:
+                film, frame = guess
+                print("Deduced Film ID {} and Frame {}".format(film, frame))
+
+            else:
+                print("{} does not match FILM-FRAME notation".format(file))
+                # prompt user for film/frame
+                #	either accept film/frame or just film then prompt frame
+                film, frame = prompt_frame(file)
                 negative = get_negative(film, frame)
             else:
                 film, frame = prompt_frame(file)
