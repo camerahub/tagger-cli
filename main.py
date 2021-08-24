@@ -75,7 +75,7 @@ def update_setting(l_path, l_section, l_setting, l_value):
         config.write(config_file)
 
 
-def test_credentials(l_server, l_username, l_password):
+def test_credentials(l_server):
     """
     Validate a set of credentials
     :param server:
@@ -86,7 +86,7 @@ def test_credentials(l_server, l_username, l_password):
 
     response = requests.get(
             l_server+'/camera',
-            auth=(l_username, l_password)
+            auth=auth
         )
 
     return bool(response.status_code == 200)
@@ -152,7 +152,7 @@ def create_scan(l_negative):
     # Create dict
     data = {'negative': l_negative}
     url = 'https://dev.camerahub.info/api/scan/'
-    response = requests.post(url, data = data)
+    response = requests.post(url, auth=auth, data = data)
     # TODO: extract new scan id from response
 
     return response
@@ -226,6 +226,9 @@ if __name__ == '__main__':
     server = get_setting(configpath, 'Settings', 'server')
     username = get_setting(configpath, 'Settings', 'username')
     password = get_setting(configpath, 'Settings', 'password')
+
+    # Create auth object
+    auth = (username, password)
 
     # Test the credentials we have
     try:
