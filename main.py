@@ -13,6 +13,8 @@ from fnmatch import filter
 from uuid import UUID
 from exif import Image
 import requests
+from requests.models import HTTPError
+from datetime import date
 
 
 
@@ -137,10 +139,10 @@ def prompt_frame(filename):
     l_frame = input("Enter frame ID for {}: ".format(l_film))
     return (l_film, l_frame)
 
-def create_scan(l_negative):
+def create_scan(l_negative, l_filename):
     """
-    Create a new Scan record in CameraHub, associated with the Negative record
-    POST to https://camerahub.info/api/scan/
+    Creates a new Scan record in CameraHub, associated with a Negative record
+    Returns the uuid of the new Scan record
     {
         "negative": null,
         "print": null,
@@ -150,31 +152,48 @@ def create_scan(l_negative):
     """
 
     # Create dict
-    data = {'negative': l_negative}
-    url = 'https://dev.camerahub.info/api/scan/'
+    data = {
+        'negative': l_negative,
+        'filename': l_filename,
+        'date': date.today()}
+    url = server+'/scan/'
     response = requests.post(url, auth=auth, data = data)
-    # TODO: extract new scan id from response
-
-    return response
+    response.raise_for_status()
+    data=json.loads(response.text)
+    return data["uuid"]
 
 
 def get_scan(l_scan):
     """
     Get all details about a scan record in CameraHub
-    GET https://dev.camerahub.info/api/scan/?uuid=07c1c01c-0092-4025-8b0f-4513ff6d327b
-    or POST a json object
     """
-    print(l_scan)
-    return l_scan
+    payload = {'uuid': l_scan}
+    url = server+'/scan/'
+    response = requests.get(url, auth=auth, params=payload)
+    response.raise_for_status()
+
+    data=json.loads(response.text)
+    if data["count"] == 1:
+        scan = data["results"][0]
+
+    return scan
 
 
 def get_negative(l_film, l_frame):
     """
-    Find the negative ID for a negative based on its film ID and frame ID
+    Find the negative slug for a negative based on its film slug and frame
     """
-    print(l_film)
-    print(l_frame)
-    return l_film
+    # TODO: complete this function with API lookup
+    payload = {'film': l_film, 'frame': l_frame}
+    url = server+'/negative/'
+    response = requests.get(url, auth=auth, params=payload)
+    response.raise_for_status()
+
+    data=json.loads(response.text)
+    if data["count"] == 1:
+        negative = data["results"][0]["slug"]
+
+    return negative
 
 
 def api2exif(l_apidata):
@@ -296,16 +315,35 @@ if __name__ == '__main__':
                 # prompt user for film/frame
                 #	either accept film/frame or just film then prompt frame
                 film, frame = prompt_frame(file)
+
+            # Lookup Negative from API
+            try:
                 negative = get_negative(film, frame)
+            except HTTPError as err:
+                print(err)
+                continue
+            except:
+                print("Couldn't find Negative ID for {}".format(file))
+                continue
             else:
-                film, frame = prompt_frame(file)
-                # prompt user for film/frame
+                print("{} corresponds to Negative {}".format(file, negative))
 
-            #	generate scan id
-            scan = create_scan(negative)
+            # Create Scan record associated with the Negative
+            try:
+                scan = create_scan(negative, file)
+            except:
+                print("Couldn't generate Scan ID for Negative {}".format(negative))
+                continue
+            else:
+                print("Created new Scan ID {}".format(scan))
 
-            #   lookup extended scan details in API
-            apidata = get_scan(scan)
+            # Lookup extended Scan details in API
+            try:
+                apidata = get_scan(scan)
+            except:
+                print("Couldn't retrieve data for Scan {}".format(scan))
+            else:
+                print("Got data for Scan {}".format(scan))
 
             # mangle CameraHub format tags into EXIF format tags
             exifdata = api2exif(apidata)
