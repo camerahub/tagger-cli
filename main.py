@@ -15,6 +15,7 @@ from exif import Image
 import requests
 from requests.models import HTTPError
 from datetime import date
+from decimal import Decimal
 
 
 
@@ -217,9 +218,19 @@ def api2exif(l_apidata):
         # If the value is not None, build its key by concating the path
         if value is not None:
             key = ('.'.join(row))
-            exifkey = apitag2exiftag(key)
-            if exifkey is not None:
-                l_exifdata[exifkey] = value
+
+            # Check for "special" tags that need computation
+            if key == 'negative.latitude':
+                l_exifdata['gps_latitude'] = deg_to_dms(value)
+                l_exifdata['gps_latitude_ref'] = gps_ref('latitude', value)
+            elif key == 'negative.longitude':
+                l_exifdata['gps_longitude'] = deg_to_dms(value)
+                l_exifdata['gps_longitude_ref'] = gps_ref('longitude', value)
+            else:
+                # Otherwise do a 1:1 mapping
+                exifkey = apitag2exiftag(key)
+                if exifkey is not None:
+                    l_exifdata[exifkey] = value
 
     return l_exifdata
 
@@ -257,13 +268,36 @@ def apitag2exiftag(apitag):
         'negative.shutter_speed': 'shutter_speed_value',
         'negative.lens.lensmodel.max_aperture': 'max_aperture_value',
         'negative.copyright': 'copyright',
-        'negative.latitude': 'gps_latitude',
-        'negative.longitude': 'gps_longitude',
         'negative.focal_length_35mm': 'focal_length_in_35mm_film',
     }
 
     exiftag = mapping.get(apitag)
     return exiftag
+
+
+def deg_to_dms(deg):
+    """
+    Convert from decimal degrees to degrees, minutes, seconds.
+    """
+    deg = Decimal(deg)
+    m, s = divmod(abs(deg)*3600, 60)
+    d, m = divmod(m, 60)
+    d, m = int(d), int(m)
+    return d, m, s
+
+
+def gps_ref(direction, angle):
+    """
+    Return the direction of a GPS coordinate
+    """
+    angle=Decimal(angle)
+    if direction == 'latitude':
+        hemi = 'N' if angle>=0 else 'S'
+    elif direction == 'longitude':
+        hemi = 'E' if angle>=0 else 'W'
+    else:
+        hemi = None
+    return hemi
 
 
 def diff_tags(dicta, dictb):
