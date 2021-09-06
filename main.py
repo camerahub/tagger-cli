@@ -11,12 +11,12 @@ import re
 import json
 from fnmatch import filter
 from uuid import UUID
-from exif import Image
-import requests
-from requests.models import HTTPError
 from datetime import date
 from decimal import Decimal
 import pprint
+from exif import Image
+import requests
+from requests.models import HTTPError
 
 
 
@@ -165,7 +165,7 @@ def create_scan(l_negative, l_filename):
     return data["uuid"]
 
 
-def get_scan(l_scan, l_username, l_password):
+def get_scan(l_scan):
     """
     Get all details about a scan record in CameraHub
     """
@@ -176,16 +176,15 @@ def get_scan(l_scan, l_username, l_password):
 
     data=json.loads(response.text)
     if data["count"] == 1:
-        scan = data["results"][0]
+        l_scan = data["results"][0]
 
-    return scan
+    return l_scan
 
 
-def get_negative(l_film, l_frame, l_username, l_password):
+def get_negative(l_film, l_frame):
     """
     Find the negative slug for a negative based on its film slug and frame
     """
-    # TODO: complete this function with API lookup
     payload = {'film': l_film, 'frame': l_frame}
     url = server+'/negative/'
     response = requests.get(url, auth=auth, params=payload)
@@ -193,9 +192,9 @@ def get_negative(l_film, l_frame, l_username, l_password):
 
     data=json.loads(response.text)
     if data["count"] == 1:
-        negative = data["results"][0]["slug"]
+        l_negative = data["results"][0]["slug"]
 
-    return negative
+    return l_negative
 
 
 def api2exif(l_apidata):
@@ -214,24 +213,24 @@ def api2exif(l_apidata):
     # Each item is one member of the nested structure
     for row in data:
         # The value is the last member of the list
-        value = row.pop()
-    
+        l_value = row.pop()
+
         # If the value is not None, build its key by concating the path
-        if value is not None:
-            key = ('.'.join(row))
+        if l_value is not None:
+            l_key = ('.'.join(row))
 
             # Check for "special" tags that need computation
-            if key == 'negative.latitude':
-                l_exifdata['gps_latitude'] = deg_to_dms(value)
-                l_exifdata['gps_latitude_ref'] = gps_ref('latitude', value)
-            elif key == 'negative.longitude':
-                l_exifdata['gps_longitude'] = deg_to_dms(value)
-                l_exifdata['gps_longitude_ref'] = gps_ref('longitude', value)
+            if l_key == 'negative.latitude':
+                l_exifdata['gps_latitude'] = deg_to_dms(l_value)
+                l_exifdata['gps_latitude_ref'] = gps_ref('latitude', l_value)
+            elif l_key == 'negative.longitude':
+                l_exifdata['gps_longitude'] = deg_to_dms(l_value)
+                l_exifdata['gps_longitude_ref'] = gps_ref('longitude', l_value)
             else:
                 # Otherwise do a 1:1 mapping
-                exifkey = apitag2exiftag(key)
+                exifkey = apitag2exiftag(l_key)
                 if exifkey is not None:
-                    l_exifdata[exifkey] = value
+                    l_exifdata[exifkey] = l_value
 
     return l_exifdata
 
@@ -276,15 +275,15 @@ def apitag2exiftag(apitag):
     return exiftag
 
 
-def deg_to_dms(deg):
+def deg_to_dms(decimal):
     """
     Convert from decimal degrees to degrees, minutes, seconds.
     """
-    deg = Decimal(deg)
-    m, s = divmod(abs(deg)*3600, 60)
-    d, m = divmod(m, 60)
-    d, m = int(d), int(m)
-    return d, m, s
+    decimal = Decimal(decimal)
+    minute, second = divmod(abs(decimal)*3600, 60)
+    degree, minute = divmod(minute, 60)
+    degree, minute = int(degree), int(minute)
+    return degree, minute, second
 
 
 def gps_ref(direction, angle):
@@ -321,16 +320,16 @@ def walk(indict, pre=None):
     """
     pre = pre[:] if pre else []
     if isinstance(indict, dict):
-        for key, value in indict.items():
-            if isinstance(value, dict):
-                for d in walk(value, pre + [key]):
-                    yield d
-            elif isinstance(value, list) or isinstance(value, tuple):
-                for v in value:
-                    for d in walk(v, pre + [key]):
-                        yield d
+        for l_key, l_value in indict.items():
+            if isinstance(l_value, dict):
+                for l_dict in walk(l_value, pre + [l_key]):
+                    yield l_dict
+            elif isinstance(l_value, list) or isinstance(l_value, tuple):
+                for val in l_value:
+                    for l_dict in walk(val, pre + [l_key]):
+                        yield l_dict
             else:
-                yield pre + [key, value]
+                yield pre + [l_key, l_value]
     else:
         yield pre + [indict]
 
@@ -367,7 +366,7 @@ if __name__ == '__main__':
 
     # Test the credentials we have
     try:
-        test_credentials(server, username, password)
+        test_credentials(server)
     except:
         print("Creds not OK")
     else:
@@ -375,13 +374,20 @@ if __name__ == '__main__':
 
     # Read in args
     parser = argparse.ArgumentParser()
-    parser.add_argument('-r', '--recursive', help="search for scans recursively", action='store_true')
-    parser.add_argument('-a', '--auto', help="don't prompt user to identify scans, only guess based on filename", action='store_true')
-    parser.add_argument('-y', '--yes', help="accept all changes", action='store_true')
-    parser.add_argument('-d', '--dry-run', help="don't write any tags", action='store_true')
-    parser.add_argument('-c', '--config', help="path to config file", default=configpath)
-    parser.add_argument('-f', '--file', help="image file to be tagged", type=str)
-    parser.add_argument('-s', '--server', help="CameraHub server to connect to", default="https://camerahub.info/api", type=str)
+    parser.add_argument('-r', '--recursive',
+        help="search for scans recursively", action='store_true')
+    parser.add_argument('-a', '--auto', action='store_true',
+        help="don't prompt user to identify scans, only guess based on filename")
+    parser.add_argument('-y', '--yes',
+        help="accept all changes", action='store_true')
+    parser.add_argument('-d', '--dry-run',
+        help="don't write any tags", action='store_true')
+    parser.add_argument('-c', '--config',
+        help="path to config file", default=configpath)
+    parser.add_argument('-f', '--file',
+        help="image file to be tagged", type=str)
+    parser.add_argument('-s', '--server',
+        help="CameraHub server to connect to", default="https://camerahub.info/api", type=str)
     args = parser.parse_args()
 
     # Get our initial connection settings
@@ -391,7 +397,7 @@ if __name__ == '__main__':
     password = get_setting(args.config, 'Settings', 'password')
 
     # Test the credentials we have
-    if test_credentials(server, username, password):
+    if test_credentials(server):
         print("Creds OK")
     else:
         print("Creds not OK")
