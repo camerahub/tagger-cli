@@ -19,7 +19,7 @@ unicode_backport = ["unicodedata2"]
 
 [[package]]
 name = "exif"
-version = "1.3.1"
+version = "1.3.2"
 description = "Read and modify image EXIF metadata using Python."
 category = "main"
 optional = false
@@ -86,7 +86,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "44e0dabe6369196764b958358fedf03c31bd0d55617e8528020f7ad4a8d27b36"
+content-hash = "6dd268224c6a0926822963fab4cfb15d09ecf69bc81f8c26f6e63df8cf2813a7"
 
 [metadata.files]
 certifi = [
@@ -98,8 +98,8 @@ charset-normalizer = [
     {file = "charset_normalizer-2.0.4-py3-none-any.whl", hash = "sha256:0c8911edd15d19223366a194a513099a302055a962bca2cec0f54b8b63175d8b"},
 ]
 exif = [
-    {file = "exif-1.3.1-py3-none-any.whl", hash = "sha256:d1e08f7ee0fe30759e72bdbf2bb9a32d24e9879ddfe8cf9513c003fb9bf9eb58"},
-    {file = "exif-1.3.1.tar.gz", hash = "sha256:48734e5a503b055418e67e358accb8572586e2648d69f362b59339cf9fef0aac"},
+    {file = "exif-1.3.2-py3-none-any.whl", hash = "sha256:d9bae4fd7737a879402dd6e5d1675e230185e1221c3df62238faf2c8f08756d4"},
+    {file = "exif-1.3.2.tar.gz", hash = "sha256:7a93ced12bca131b04c7e92c13a16a40685b9eb83414f9ed479d38df1c686633"},
 ]
 idna = [
     {file = "idna-3.2-py3-none-any.whl", hash = "sha256:14475042e284991034cb48e06f6851428fb14c4dc953acd9be9a5e95c7b6dd7a"},
