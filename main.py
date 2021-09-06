@@ -16,6 +16,7 @@ import requests
 from requests.models import HTTPError
 from datetime import date
 from decimal import Decimal
+import pprint
 
 
 
@@ -470,7 +471,8 @@ if __name__ == '__main__':
             # if non-zero diff, ask user to confirm tag write
             if len(diff) > 0:
                 # print diff & confirm write
-                print(diff)
+                pp = pprint.PrettyPrinter()
+                pp.pprint(diff)
 
                 if not args.dry_run and yes_or_no("Write this metadata to the file?"):
 
