@@ -13,6 +13,10 @@ from fnmatch import filter
 from uuid import UUID
 from exif import Image
 import requests
+from requests.models import HTTPError
+from datetime import date
+from decimal import Decimal
+import pprint
 
 
 
@@ -75,7 +79,7 @@ def update_setting(l_path, l_section, l_setting, l_value):
         config.write(config_file)
 
 
-def test_credentials(l_server, l_username, l_password):
+def test_credentials(l_server):
     """
     Validate a set of credentials
     :param server:
@@ -86,7 +90,7 @@ def test_credentials(l_server, l_username, l_password):
 
     response = requests.get(
             l_server+'/camera',
-            auth=(l_username, l_password)
+            auth=auth
         )
 
     return bool(response.status_code == 200)
@@ -120,10 +124,11 @@ def guess_frame(filename):
     for example 123-22-holiday.jpg
     """
     match = re.search(r'^(\d+)-(\d+).*\.jpe?g$', filename.lower())
-    if match:
-    return (match.group(0), match.group(1))
+    if match and match.group(0) and match.group(1):
+        returnval = (match.group(0), match.group(1))
     else:
-        return
+        returnval = None
+    return returnval
 
 
 def prompt_frame(filename):
@@ -136,10 +141,10 @@ def prompt_frame(filename):
     l_frame = input("Enter frame ID for {}: ".format(l_film))
     return (l_film, l_frame)
 
-def create_scan(l_negative, l_username, l_password):
+def create_scan(l_negative, l_filename):
     """
-    Create a new Scan record in CameraHub, associated with the Negative record
-    POST to https://camerahub.info/api/scan/
+    Creates a new Scan record in CameraHub, associated with a Negative record
+    Returns the uuid of the new Scan record
     {
         "negative": null,
         "print": null,
@@ -149,31 +154,48 @@ def create_scan(l_negative, l_username, l_password):
     """
 
     # Create dict
-    data = {'negative': l_negative}
-    url = args.server + '/scan/'
-    response = requests.post(url, data = data, auth=(l_username, l_password))
-    # TODO: extract new scan id from response
-
-    return response
+    data = {
+        'negative': l_negative,
+        'filename': l_filename,
+        'date': date.today()}
+    url = server+'/scan/'
+    response = requests.post(url, auth=auth, data = data)
+    response.raise_for_status()
+    data=json.loads(response.text)
+    return data["uuid"]
 
 
 def get_scan(l_scan, l_username, l_password):
     """
     Get all details about a scan record in CameraHub
-    GET https://dev.camerahub.info/api/scan/?uuid=07c1c01c-0092-4025-8b0f-4513ff6d327b
-    or POST a json object
     """
-    print(l_scan)
-    return l_scan
+    payload = {'uuid': l_scan}
+    url = server+'/scan/'
+    response = requests.get(url, auth=auth, params=payload)
+    response.raise_for_status()
+
+    data=json.loads(response.text)
+    if data["count"] == 1:
+        scan = data["results"][0]
+
+    return scan
 
 
 def get_negative(l_film, l_frame, l_username, l_password):
     """
-    Find the negative ID for a negative based on its film ID and frame ID
+    Find the negative slug for a negative based on its film slug and frame
     """
-    print(l_film)
-    print(l_frame)
-    return l_film
+    # TODO: complete this function with API lookup
+    payload = {'film': l_film, 'frame': l_frame}
+    url = server+'/negative/'
+    response = requests.get(url, auth=auth, params=payload)
+    response.raise_for_status()
+
+    data=json.loads(response.text)
+    if data["count"] == 1:
+        negative = data["results"][0]["slug"]
+
+    return negative
 
 
 def api2exif(l_apidata):
@@ -183,8 +205,100 @@ def api2exif(l_apidata):
     tags are formatted as a simple dictionary. This will also translate
     tags that have different names.
     """
-    l_exifdata = l_apidata
+    # Retrieve the flattened walk data as a list of lists
+    data = walk(l_apidata)
+
+    # Make a new dictionary of EXIF data to return
+    l_exifdata = {}
+
+    # Each item is one member of the nested structure
+    for row in data:
+        # The value is the last member of the list
+        value = row.pop()
+    
+        # If the value is not None, build its key by concating the path
+        if value is not None:
+            key = ('.'.join(row))
+
+            # Check for "special" tags that need computation
+            if key == 'negative.latitude':
+                l_exifdata['gps_latitude'] = deg_to_dms(value)
+                l_exifdata['gps_latitude_ref'] = gps_ref('latitude', value)
+            elif key == 'negative.longitude':
+                l_exifdata['gps_longitude'] = deg_to_dms(value)
+                l_exifdata['gps_longitude_ref'] = gps_ref('longitude', value)
+            else:
+                # Otherwise do a 1:1 mapping
+                exifkey = apitag2exiftag(key)
+                if exifkey is not None:
+                    l_exifdata[exifkey] = value
+
     return l_exifdata
+
+
+def apitag2exiftag(apitag):
+    """
+    When given a CameraHub API tag, flattened and formatted with dots,
+    map it to its equivalent EXIF tag, or return None
+    https://exif.readthedocs.io/en/latest/api_reference.html#image-attributes
+    """
+
+    #'Lens',
+    #'FNumber'
+
+    # Static mapping of tags
+    mapping = {
+        'uuid': 'image_unique_id',
+        'negative.film.camera.cameramodel.manufacturer.name': 'make',
+        'negative.film.camera.cameramodel.lens_manufacturer': 'lens_make',
+        'negative.film.camera.cameramodel.model': 'model',
+        'negative.film.camera.serial': 'body_serial_number',
+        'negative.film.exposed_at': 'iso_speed',
+        'negative.lens.lensmodel.model': 'lens_model',
+        'negative.lens.lensmodel.manufacturer.name': 'lens_make',
+        'negative.exposure_program': 'exposure_program',
+        'negative.metering_mode': 'metering_mode',
+        'negative.caption': 'image_description',
+        'negative.date': 'datetime_original',
+        'negative.aperture': 'f_number',
+        'negative.notes': 'user_comment',
+        'negative.focal_length': 'focal_length',
+        'negative.flash': 'flash',
+        'negative.photographer.name': 'artist',
+        'negative.lens.serial': 'lens_serial_number',
+        'negative.shutter_speed': 'shutter_speed_value',
+        'negative.lens.lensmodel.max_aperture': 'max_aperture_value',
+        'negative.copyright': 'copyright',
+        'negative.focal_length_35mm': 'focal_length_in_35mm_film',
+    }
+
+    exiftag = mapping.get(apitag)
+    return exiftag
+
+
+def deg_to_dms(deg):
+    """
+    Convert from decimal degrees to degrees, minutes, seconds.
+    """
+    deg = Decimal(deg)
+    m, s = divmod(abs(deg)*3600, 60)
+    d, m = divmod(m, 60)
+    d, m = int(d), int(m)
+    return d, m, s
+
+
+def gps_ref(direction, angle):
+    """
+    Return the direction of a GPS coordinate
+    """
+    angle=Decimal(angle)
+    if direction == 'latitude':
+        hemi = 'N' if angle>=0 else 'S'
+    elif direction == 'longitude':
+        hemi = 'E' if angle>=0 else 'W'
+    else:
+        hemi = None
+    return hemi
 
 
 def diff_tags(dicta, dictb):
@@ -197,6 +311,28 @@ def diff_tags(dicta, dictb):
     seta = set(dicta.items())
     setb = set(dictb.items())
     return dict(seta ^ setb)
+
+
+def walk(indict, pre=None):
+    """
+    Walk a structured, nested dictionary and it return it as a flattened list
+    Each item in the stucture is returned as a list consisting of each part of
+    the hierarchy and finally the value. For example,
+    """
+    pre = pre[:] if pre else []
+    if isinstance(indict, dict):
+        for key, value in indict.items():
+            if isinstance(value, dict):
+                for d in walk(value, pre + [key]):
+                    yield d
+            elif isinstance(value, list) or isinstance(value, tuple):
+                for v in value:
+                    for d in walk(v, pre + [key]):
+                        yield d
+            else:
+                yield pre + [key, value]
+    else:
+        yield pre + [indict]
 
 
 def yes_or_no(question):
@@ -219,6 +355,23 @@ if __name__ == '__main__':
     # Determine path to config file
     home = os.path.expanduser("~")
     configpath = os.path.join(home, "camerahub.ini")
+
+    # Get our initial connection settings
+    # Prompt the user to set them if they don't exist
+    server = get_setting(configpath, 'Settings', 'server')
+    username = get_setting(configpath, 'Settings', 'username')
+    password = get_setting(configpath, 'Settings', 'password')
+
+    # Create auth object
+    auth = (username, password)
+
+    # Test the credentials we have
+    try:
+        test_credentials(server, username, password)
+    except:
+        print("Creds not OK")
+    else:
+        print("Creds OK")
 
     # Read in args
     parser = argparse.ArgumentParser()
@@ -278,31 +431,60 @@ if __name__ == '__main__':
             # need to match it with a neg/print and generate a scan id
             print("{} does not have an EXIF scan ID".format(file))
 
-            try:
-                # guess film/frame from filename
-            film, frame = guess_frame(file)
-            except:
+            # else prompt user to identify the scan
+            #	guess film/frame from filename
+            guess = guess_frame(file)
+            if guess:
+                film, frame = guess
+                print("Deduced Film ID {} and Frame {}".format(film, frame))
+
+            else:
+                print("{} does not match FILM-FRAME notation".format(file))
+                # prompt user for film/frame
+                #	either accept film/frame or just film then prompt frame
                 film, frame = prompt_frame(file)
 
-            # lookup neg id from API
-            negative = get_negative(film, frame, username, password)
+            # Lookup Negative from API
+            try:
+                negative = get_negative(film, frame)
+            except HTTPError as err:
+                print(err)
+                continue
+            except:
+                print("Couldn't find Negative ID for {}".format(file))
+                continue
+            else:
+                print("{} corresponds to Negative {}".format(file, negative))
 
-            #	generate scan id
-            scan = create_scan(negative, username, password)
+            # Create Scan record associated with the Negative
+            try:
+                scan = create_scan(negative, file)
+            except:
+                print("Couldn't generate Scan ID for Negative {}".format(negative))
+                continue
+            else:
+                print("Created new Scan ID {}".format(scan))
 
-            #   lookup extended scan details in API
-            apidata = get_scan(scan, username, password)
+            # Lookup extended Scan details in API
+            try:
+                apidata = get_scan(scan)
+            except:
+                print("Couldn't retrieve data for Scan {}".format(scan))
+            else:
+                print("Got data for Scan {}".format(scan))
 
             # mangle CameraHub format tags into EXIF format tags
             exifdata = api2exif(apidata)
 
             # prepare diff of tags
-            diff = diff_tags(image, exifdata)
+            existing = image.get_all()
+            diff = diff_tags(existing, exifdata)
 
             # if non-zero diff, ask user to confirm tag write
-            if len(diff.keys) > 0:
+            if len(diff) > 0:
                 # print diff & confirm write
-                print(diff)
+                pp = pprint.PrettyPrinter()
+                pp.pprint(diff)
 
                 if not args.dry_run and yes_or_no("Write this metadata to the file?"):
 
@@ -312,5 +494,4 @@ if __name__ == '__main__':
 
                     # do the write
                     with open(file, 'wb') as image_file:
-                        image = Image(image_file)
                         image_file.write(image.get_file())
