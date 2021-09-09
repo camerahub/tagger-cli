@@ -367,7 +367,7 @@ if __name__ == '__main__':
 
     # Test the credentials we have
     try:
-        test_credentials(server, username, password)
+        test_credentials(server)
     except:
         print("Creds not OK")
     else:
