@@ -27,4 +27,8 @@ Don't write any tags
 
 ### `-f --file`
 
-Image file to be tagged
+Image file to be tagged. If not supplied, tag everything in the current directory.
+
+### `-p' --profile`
+
+CameraHub connection profile. Default: `prod`.

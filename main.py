@@ -22,41 +22,63 @@ import pprint
 
 def create_config(path):
     """
-    Create a config file in the user's home dir
+    Create an empty config file in the user's home dir
     """
     config = configparser.ConfigParser()
-    config.add_section("Settings")
-    config.set("Settings", "server", "https://camerahub.info/api")
-
-    print("Enter your login details for CameraHub.")
-
-    try:
-        l_username = input("Enter CameraHub username: ")
-    except Exception as error:
-        print('ERROR', error)
-    else:
-        config.set("Settings", "username", l_username)
-
-    try:
-        l_password = getpass.getpass(prompt="Enter CameraHub password: ")
-    except Exception as error:
-        print('ERROR', error)
-    else:
-        config.set("Settings", "password", l_password)
 
     with open(path, "w") as config_file:
         config.write(config_file)
 
 
-def get_config(path):
+def create_profile(l_path, l_config, l_section):
+    """
+    Create a new config profile in an existing config file
+    """
+
+    l_config.add_section(l_section)
+
+    try:
+        default = "https://camerahub.info/api"
+        l_server = input("Enter CameraHub server for profile '{}' (default {}): ".format(l_section, default)) or default
+    except Exception as error:
+        print('ERROR', error)
+    else:
+        l_config.set(l_section, "server", l_server)
+
+    try:
+        l_username = input("Enter CameraHub username for {}: ".format(l_server))
+    except Exception as error:
+        print('ERROR', error)
+    else:
+        l_config.set(l_section, "username", l_username)
+
+    try:
+        l_password = getpass.getpass(prompt="Enter CameraHub password for {}: ".format(l_server))
+    except Exception as error:
+        print('ERROR', error)
+    else:
+        l_config.set(l_section, "password", l_password)
+
+    with open(l_path, "w") as config_file:
+        l_config.write(config_file)
+
+
+def get_config(path, section):
     """
     Returns the config object, creating it if necessary
     """
+    # Create the config file if necessary
     if not os.path.exists(path):
-        create_config(path)
+        create_config(path, section)
 
     config = configparser.ConfigParser()
     config.read(path)
+
+    # Ensure the requested profile exists and create if not
+    if not config.has_section(section):
+        create_profile(path, config, section)
+        config.read(path)
+    
     return config
 
 
@@ -64,19 +86,9 @@ def get_setting(path, section, setting):
     """
     Get the value of a config setting
     """
-    l_config = get_config(path)
+    l_config = get_config(path, section)
     l_value = l_config.get(section, setting)
     return l_value
-
-
-def update_setting(l_path, l_section, l_setting, l_value):
-    """
-    Update a setting
-    """
-    config = get_config(l_path)
-    config.set(l_section, l_setting, l_value)
-    with open(l_path, "w") as config_file:
-        config.write(config_file)
 
 
 def test_credentials(l_server):
@@ -352,15 +364,25 @@ def yes_or_no(question):
 if __name__ == '__main__':
     print("CameraHub Tagger")
 
+    # Read in args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-r', '--recursive', help="search for scans recursively", action='store_true')
+    parser.add_argument('-a', '--auto', help="don't prompt user to identify scans, only guess based on filename", action='store_true')
+    parser.add_argument('-y', '--yes', help="accept all changes", action='store_true')
+    parser.add_argument('-d', '--dry-run', help="don't write any tags", action='store_true')
+    parser.add_argument('-f', '--file', help="image file to be tagged", type=str)
+    parser.add_argument('-p', '--profile', help="CameraHub connection profile", default='prod', type=str)
+    args = parser.parse_args()
+
     # Determine path to config file
     home = os.path.expanduser("~")
     configpath = os.path.join(home, "camerahub.ini")
 
     # Get our initial connection settings
     # Prompt the user to set them if they don't exist
-    server = get_setting(configpath, 'Settings', 'server')
-    username = get_setting(configpath, 'Settings', 'username')
-    password = get_setting(configpath, 'Settings', 'password')
+    server = get_setting(configpath, args.profile, 'server')
+    username = get_setting(configpath, args.profile, 'username')
+    password = get_setting(configpath, args.profile, 'password')
 
     # Create auth object
     auth = (username, password)
@@ -373,16 +395,6 @@ if __name__ == '__main__':
         raise PermissionError
     else:
         print("Creds OK")
-
-    # Read in args
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-r', '--recursive', help="search for scans recursively", action='store_true')
-    parser.add_argument('-a', '--auto', help="don't prompt user to identify scans, only guess based on filename", action='store_true')
-    parser.add_argument('-y', '--yes', help="accept all changes", action='store_true')
-    parser.add_argument('-d', '--dry-run', help="don't write any tags", action='store_true')
-    #parser.add_argument('-c', '--config', help="path to config file, default ~/.camerahub")
-    parser.add_argument('-f', '--file', help="image file to be tagged", type=str)
-    args = parser.parse_args()
 
 
     # if no args, scan current folder. consider recursive option
