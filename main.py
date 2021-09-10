@@ -370,6 +370,7 @@ if __name__ == '__main__':
         test_credentials(server)
     except:
         print("Creds not OK")
+        raise PermissionError
     else:
         print("Creds OK")
 
