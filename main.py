@@ -2,363 +2,15 @@
 CameraHub Tagger
 """
 
-import configparser
 import argparse
-import os
 import sys
-import getpass
-import re
-import json
 from fnmatch import filter
-from uuid import UUID
 from exif import Image
-import requests
 from requests.models import HTTPError
-from datetime import date
-from decimal import Decimal
 import pprint
-
-
-
-def create_config(path):
-    """
-    Create an empty config file in the user's home dir
-    """
-    config = configparser.ConfigParser()
-
-    with open(path, "w") as config_file:
-        config.write(config_file)
-
-
-def create_profile(l_path, l_config, l_section):
-    """
-    Create a new config profile in an existing config file
-    """
-
-    l_config.add_section(l_section)
-
-    try:
-        default = "https://camerahub.info/api"
-        l_server = input("Enter CameraHub server for profile '{}' (default {}): ".format(l_section, default)) or default
-    except Exception as error:
-        print('ERROR', error)
-    else:
-        l_config.set(l_section, "server", l_server)
-
-    try:
-        l_username = input("Enter CameraHub username for {}: ".format(l_server))
-    except Exception as error:
-        print('ERROR', error)
-    else:
-        l_config.set(l_section, "username", l_username)
-
-    try:
-        l_password = getpass.getpass(prompt="Enter CameraHub password for {}: ".format(l_server))
-    except Exception as error:
-        print('ERROR', error)
-    else:
-        l_config.set(l_section, "password", l_password)
-
-    with open(l_path, "w") as config_file:
-        l_config.write(config_file)
-
-
-def get_config(path, section):
-    """
-    Returns the config object, creating it if necessary
-    """
-    # Create the config file if necessary
-    if not os.path.exists(path):
-        create_config(path, section)
-
-    config = configparser.ConfigParser()
-    config.read(path)
-
-    # Ensure the requested profile exists and create if not
-    if not config.has_section(section):
-        create_profile(path, config, section)
-        config.read(path)
-    
-    return config
-
-
-def get_setting(path, section, setting):
-    """
-    Get the value of a config setting
-    """
-    l_config = get_config(path, section)
-    l_value = l_config.get(section, setting)
-    return l_value
-
-
-def test_credentials(l_server):
-    """
-    Validate a set of credentials
-    :param server:
-    :param username:
-    :param password:
-    :return: Bool
-    """
-
-    response = requests.get(
-            l_server+'/camera',
-            auth=auth
-        )
-
-    return bool(response.status_code == 200)
-
-
-def is_valid_uuid(uuid_to_test, version=4):
-    """
-    Check if uuid_to_test is a valid UUID.
-
-    Parameters
-    ----------
-    uuid_to_test : str
-    version : {1, 2, 3, 4}
-
-    Returns
-    -------
-    `True` if uuid_to_test is a valid UUID, otherwise `False`.
-    """
-
-    try:
-        uuid_obj = UUID(uuid_to_test, version=version)
-    except ValueError:
-        return False
-    return str(uuid_obj) == uuid_to_test
-
-
-def guess_frame(filename):
-    """
-    Guess a negative's film id and frame id based on its filename
-    Assumes a format of [film]-[frame]-title.jpg
-    for example 123-22-holiday.jpg
-    """
-    match = re.search(r'^(\d+)-(\d+).*\.jpe?g$', filename.lower())
-    if match and match.group(0) and match.group(1):
-        returnval = (match.group(0), match.group(1))
-    else:
-        returnval = None
-    return returnval
-
-
-def prompt_frame(filename):
-    """
-    Prompt user to enter film id and frame id
-    At the moment these questions are asked sequentially
-    TODO: be able to parse compact film/frame format
-    """
-    l_film = input("Enter film ID for {}: ".format(filename))
-    l_frame = input("Enter frame ID for {}: ".format(l_film))
-    return (l_film, l_frame)
-
-def create_scan(l_negative, l_filename):
-    """
-    Creates a new Scan record in CameraHub, associated with a Negative record
-    Returns the uuid of the new Scan record
-    {
-        "negative": null,
-        "print": null,
-        "filename": "",
-        "date": null
-    }
-    """
-
-    # Create dict
-    data = {
-        'negative': l_negative,
-        'filename': l_filename,
-        'date': date.today()}
-    url = server+'/scan/'
-    response = requests.post(url, auth=auth, data = data)
-    response.raise_for_status()
-    data=json.loads(response.text)
-    return data["uuid"]
-
-
-def get_scan(l_scan):
-    """
-    Get all details about a scan record in CameraHub
-    """
-    payload = {'uuid': l_scan}
-    url = server+'/scan/'
-    response = requests.get(url, auth=auth, params=payload)
-    response.raise_for_status()
-
-    data=json.loads(response.text)
-    if data["count"] == 1:
-        scan = data["results"][0]
-
-    return scan
-
-
-def get_negative(l_film, l_frame):
-    """
-    Find the negative slug for a negative based on its film slug and frame
-    """
-    # TODO: complete this function with API lookup
-    payload = {'film': l_film, 'frame': l_frame}
-    url = server+'/negative/'
-    response = requests.get(url, auth=auth, params=payload)
-    response.raise_for_status()
-
-    data=json.loads(response.text)
-    if data["count"] == 1:
-        negative = data["results"][0]["slug"]
-
-    return negative
-
-
-def api2exif(l_apidata):
-    """
-    Reformat CameraHub format tags into EXIF format tags.
-    CameraHub tags from the API will be JSON-formatted whereas EXIF
-    tags are formatted as a simple dictionary. This will also translate
-    tags that have different names.
-    """
-    # Retrieve the flattened walk data as a list of lists
-    data = walk(l_apidata)
-
-    # Make a new dictionary of EXIF data to return
-    l_exifdata = {}
-
-    # Each item is one member of the nested structure
-    for row in data:
-        # The value is the last member of the list
-        value = row.pop()
-    
-        # If the value is not None, build its key by concating the path
-        if value is not None:
-            key = ('.'.join(row))
-
-            # Check for "special" tags that need computation
-            if key == 'negative.latitude':
-                l_exifdata['gps_latitude'] = deg_to_dms(value)
-                l_exifdata['gps_latitude_ref'] = gps_ref('latitude', value)
-            elif key == 'negative.longitude':
-                l_exifdata['gps_longitude'] = deg_to_dms(value)
-                l_exifdata['gps_longitude_ref'] = gps_ref('longitude', value)
-            else:
-                # Otherwise do a 1:1 mapping
-                exifkey = apitag2exiftag(key)
-                if exifkey is not None:
-                    l_exifdata[exifkey] = value
-
-    return l_exifdata
-
-
-def apitag2exiftag(apitag):
-    """
-    When given a CameraHub API tag, flattened and formatted with dots,
-    map it to its equivalent EXIF tag, or return None
-    https://exif.readthedocs.io/en/latest/api_reference.html#image-attributes
-    """
-
-    #'Lens',
-    #'FNumber'
-
-    # Static mapping of tags
-    mapping = {
-        'uuid': 'image_unique_id',
-        'negative.film.camera.cameramodel.manufacturer.name': 'make',
-        'negative.film.camera.cameramodel.lens_manufacturer': 'lens_make',
-        'negative.film.camera.cameramodel.model': 'model',
-        'negative.film.camera.serial': 'body_serial_number',
-        'negative.film.exposed_at': 'iso_speed',
-        'negative.lens.lensmodel.model': 'lens_model',
-        'negative.lens.lensmodel.manufacturer.name': 'lens_make',
-        'negative.exposure_program': 'exposure_program',
-        'negative.metering_mode': 'metering_mode',
-        'negative.caption': 'image_description',
-        'negative.date': 'datetime_original',
-        'negative.aperture': 'f_number',
-        'negative.notes': 'user_comment',
-        'negative.focal_length': 'focal_length',
-        'negative.flash': 'flash',
-        'negative.photographer.name': 'artist',
-        'negative.lens.serial': 'lens_serial_number',
-        'negative.shutter_speed': 'shutter_speed_value',
-        'negative.lens.lensmodel.max_aperture': 'max_aperture_value',
-        'negative.copyright': 'copyright',
-        'negative.focal_length_35mm': 'focal_length_in_35mm_film',
-    }
-
-    exiftag = mapping.get(apitag)
-    return exiftag
-
-
-def deg_to_dms(deg):
-    """
-    Convert from decimal degrees to degrees, minutes, seconds.
-    """
-    deg = Decimal(deg)
-    m, s = divmod(abs(deg)*3600, 60)
-    d, m = divmod(m, 60)
-    d, m = int(d), int(m)
-    return d, m, s
-
-
-def gps_ref(direction, angle):
-    """
-    Return the direction of a GPS coordinate
-    """
-    angle=Decimal(angle)
-    if direction == 'latitude':
-        hemi = 'N' if angle>=0 else 'S'
-    elif direction == 'longitude':
-        hemi = 'E' if angle>=0 else 'W'
-    else:
-        hemi = None
-    return hemi
-
-
-def diff_tags(dicta, dictb):
-    """
-    Compare two dictionaries of EXIF tags and return a dictionary which contains
-    the diff required to apply b's data to a, without destroying data in a.
-    This uses a symmetric difference operator:
-    https://docs.python.org/3/library/stdtypes.html#frozenset.symmetric_difference
-    """
-    seta = set(dicta.items())
-    setb = set(dictb.items())
-    return dict(seta ^ setb)
-
-
-def walk(indict, pre=None):
-    """
-    Walk a structured, nested dictionary and it return it as a flattened list
-    Each item in the stucture is returned as a list consisting of each part of
-    the hierarchy and finally the value. For example,
-    """
-    pre = pre[:] if pre else []
-    if isinstance(indict, dict):
-        for key, value in indict.items():
-            if isinstance(value, dict):
-                for d in walk(value, pre + [key]):
-                    yield d
-            elif isinstance(value, list) or isinstance(value, tuple):
-                for v in value:
-                    for d in walk(v, pre + [key]):
-                        yield d
-            else:
-                yield pre + [key, value]
-    else:
-        yield pre + [indict]
-
-
-def yes_or_no(question):
-    """
-    Prompt for a yes/no answer
-    https://gist.github.com/garrettdreyfus/8153571#gistcomment-2586248
-    """
-    answer = input(question + "(y/n): ").lower().strip()
-    print("")
-    while not answer in ('y', 'yes', 'n', 'no'):
-        print("Input yes or no")
-        answer = input(question + "(y/n):").lower().strip()
-        print("")
-    return bool(answer[0] == "y")
+from funcs import *
+from config import *
+from api import *
 
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
@@ -389,7 +41,7 @@ if __name__ == '__main__':
 
     # Test the credentials we have
     try:
-        test_credentials(server)
+        test_credentials(server, auth)
     except:
         print("Creds not OK")
         raise PermissionError
@@ -425,9 +77,9 @@ if __name__ == '__main__':
 
         if image.has_exif is True and image.get("image_unique_id") and is_valid_uuid(image.image_unique_id):
             # check for presence of custom exif tag for camerahub
-            # ImageUniqueID, UserComment, Comment
             # already has a uuid scan id
             print("{} already has an EXIF scan ID".format(file))
+            scan = image.get("image_unique_id")
         else:
             # need to match it with a neg/print and generate a scan id
             print("{} does not have an EXIF scan ID".format(file))
@@ -447,7 +99,7 @@ if __name__ == '__main__':
 
             # Lookup Negative from API
             try:
-                negative = get_negative(film, frame)
+                negative = get_negative(film, frame, server, auth)
             except HTTPError as err:
                 print(err)
                 continue
@@ -466,33 +118,33 @@ if __name__ == '__main__':
             else:
                 print("Created new Scan ID {}".format(scan))
 
-            # Lookup extended Scan details in API
-            try:
-                apidata = get_scan(scan)
-            except:
-                print("Couldn't retrieve data for Scan {}".format(scan))
-            else:
-                print("Got data for Scan {}".format(scan))
+        # Lookup extended Scan details in API
+        try:
+            apidata = get_scan(scan, server, auth)
+        except:
+            print("Couldn't retrieve data for Scan {}".format(scan))
+        else:
+            print("Got data for Scan {}".format(scan))
 
-            # mangle CameraHub format tags into EXIF format tags
-            exifdata = api2exif(apidata)
+        # mangle CameraHub format tags into EXIF format tags
+        exifdata = api2exif(apidata)
 
-            # prepare diff of tags
-            existing = image.get_all()
-            diff = diff_tags(existing, exifdata)
+        # prepare diff of tags
+        existing = image.get_all()
+        diff = diff_tags(existing, exifdata)
 
-            # if non-zero diff, ask user to confirm tag write
-            if len(diff) > 0:
-                # print diff & confirm write
-                pp = pprint.PrettyPrinter()
-                pp.pprint(diff)
+        # if non-zero diff, ask user to confirm tag write
+        if len(diff) > 0:
+            # print diff & confirm write
+            pp = pprint.PrettyPrinter()
+            pp.pprint(diff)
 
-                if not args.dry_run and yes_or_no("Write this metadata to the file?"):
+            if not args.dry_run and yes_or_no("Write this metadata to the file?"):
 
-                    # Apply the diff to the image
-                    for key, value in diff.items():
-                        image.set(key, value)
+                # Apply the diff to the image
+                for key, value in diff.items():
+                    image.set(key, value)
 
-                    # do the write
-                    with open(file, 'wb') as image_file:
-                        image_file.write(image.get_file())
+                # do the write
+                with open(file, 'wb') as image_file:
+                    image_file.write(image.get_file())
