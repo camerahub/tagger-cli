@@ -11,7 +11,7 @@ This app will be available on PyPI when it is finished.
 
 ### `-r --recursive`
 
-Search for scans recursively
+Search for scans recursively from current directory
 
 ### `-a --auto`
 
