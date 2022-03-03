@@ -11,7 +11,7 @@ import re
 import json
 from fnmatch import filter
 from uuid import UUID
-from exif import Image
+import piexif
 import requests
 from requests.models import HTTPError
 from datetime import date
@@ -198,6 +198,36 @@ def get_negative(l_film, l_frame, l_username, l_password):
     return negative
 
 
+def api2gps(l_apidata):
+    """
+    Reformat CameraHub format tags into GPS format tags.
+    """
+    # Retrieve the flattened walk data as a list of lists
+    data = walk(l_apidata)
+
+    # Make a new dictionary of EXIF data to return
+    l_exifdata = {}
+
+    # Each item is one member of the nested structure
+    for row in data:
+        # The value is the last member of the list
+        value = row.pop()
+    
+        # If the value is not None, build its key by concating the path
+        if value is not None:
+            key = ('.'.join(row))
+
+            # GPS tags that need computation
+            if key == 'negative.latitude':
+                l_exifdata['GPSLatitude'] = deg_to_dms(value)
+                l_exifdata['GPSLatitudeRef'] = gps_ref('latitude', value)
+            elif key == 'negative.longitude':
+                l_exifdata['GPSLongitude'] = deg_to_dms(value)
+                l_exifdata['GPSLongitudeRef'] = gps_ref('longitude', value)
+
+    return l_exifdata
+
+
 def api2exif(l_apidata):
     """
     Reformat CameraHub format tags into EXIF format tags.
@@ -220,18 +250,10 @@ def api2exif(l_apidata):
         if value is not None:
             key = ('.'.join(row))
 
-            # Check for "special" tags that need computation
-            if key == 'negative.latitude':
-                l_exifdata['gps_latitude'] = deg_to_dms(value)
-                l_exifdata['gps_latitude_ref'] = gps_ref('latitude', value)
-            elif key == 'negative.longitude':
-                l_exifdata['gps_longitude'] = deg_to_dms(value)
-                l_exifdata['gps_longitude_ref'] = gps_ref('longitude', value)
-            else:
-                # Otherwise do a 1:1 mapping
-                exifkey = apitag2exiftag(key)
-                if exifkey is not None:
-                    l_exifdata[exifkey] = value
+            # Look up the EXIF name of the tag
+            exifkey = apitag2exiftag(key)
+            if exifkey is not None:
+                l_exifdata[exifkey] = value
 
     return l_exifdata
 
@@ -249,27 +271,27 @@ def apitag2exiftag(apitag):
     # Static mapping of tags
     mapping = {
         'uuid': 'image_unique_id',
-        'negative.film.camera.cameramodel.manufacturer.name': 'make',
-        'negative.film.camera.cameramodel.lens_manufacturer': 'lens_make',
-        'negative.film.camera.cameramodel.model': 'model',
-        'negative.film.camera.serial': 'body_serial_number',
-        'negative.film.exposed_at': 'iso_speed',
-        'negative.lens.lensmodel.model': 'lens_model',
-        'negative.lens.lensmodel.manufacturer.name': 'lens_make',
-        'negative.exposure_program': 'exposure_program',
-        'negative.metering_mode': 'metering_mode',
-        'negative.caption': 'image_description',
-        'negative.date': 'datetime_original',
-        'negative.aperture': 'f_number',
-        'negative.notes': 'user_comment',
-        'negative.focal_length': 'focal_length',
-        'negative.flash': 'flash',
-        'negative.photographer.name': 'artist',
-        'negative.lens.serial': 'lens_serial_number',
-        'negative.shutter_speed': 'shutter_speed_value',
-        'negative.lens.lensmodel.max_aperture': 'max_aperture_value',
-        'negative.copyright': 'copyright',
-        'negative.focal_length_35mm': 'focal_length_in_35mm_film',
+        'negative.film.camera.cameramodel.manufacturer.name': 'Make',
+        'negative.film.camera.cameramodel.lens_manufacturer': 'LensMake',
+        'negative.film.camera.cameramodel.model': 'Model',
+        'negative.film.camera.serial': 'BodySerialNumber',
+        'negative.film.exposed_at': 'ISOSpeed',
+        'negative.lens.lensmodel.model': 'LensModel',
+        'negative.lens.lensmodel.manufacturer.name': 'LensMake',
+        'negative.exposure_program': 'ExposureProgram',
+        'negative.metering_mode': 'MeteringMode',
+        'negative.caption': 'ImageDescription',
+        'negative.date': 'DateTimeOriginal',
+        'negative.aperture': 'FNumber',
+        'negative.notes': 'UserComment',
+        'negative.focal_length': 'FocalLength',
+        'negative.flash': 'Flash',
+        'negative.photographer.name': 'Artist',
+        'negative.lens.serial': 'LensSerialNumber',
+        'negative.shutter_speed': 'ShutterSpeedValue',
+        'negative.lens.lensmodel.max_aperture': 'MaxApertureValue',
+        'negative.copyright': 'Copyright',
+        'negative.focal_length_35mm': 'FocalLengthIn35mmFilm',
     }
 
     exiftag = mapping.get(apitag)
@@ -418,13 +440,11 @@ if __name__ == '__main__':
     for file in files:
         print("Processing image {}".format(file))
 
-        # Extract exif data from file
-        with open(file, 'rb') as image_file:
-            image = Image(image_file)
+        # Extract all metadata from file
+        image_metadata = piexif.load(file)
 
-        if image.has_exif is True and image.get("image_unique_id") and is_valid_uuid(image.image_unique_id):
+        if image_metadata and image_metadata['Exif']['ImageUniqueID'] and is_valid_uuid(image_metadata['Exif']['ImageUniqueID']):
             # check for presence of custom exif tag for camerahub
-            # ImageUniqueID, UserComment, Comment
             # already has a uuid scan id
             print("{} already has an EXIF scan ID".format(file))
         else:
@@ -473,12 +493,21 @@ if __name__ == '__main__':
             else:
                 print("Got data for Scan {}".format(scan))
 
-            # mangle CameraHub format tags into EXIF format tags
-            exifdata = api2exif(apidata)
+            # mangle CameraHub format tags into EXIF and GPS format tags
+            api_exif = api2exif(apidata)
+            api_gps = api2gps(apidata)
 
             # prepare diff of tags
-            existing = image.get_all()
-            diff = diff_tags(existing, exifdata)
+            image_exif = {}
+            for key, value in image_metadata['Exif']:
+                image_exif[key] = value
+            image_gps = {}
+            for key, value in image_metadata['GPS']:
+                image_gps[key] = value            
+
+            diff_exif = diff_tags(image_exif, api_exif)
+            diff_gps = diff_tags(image_gps, api_gps)
+            diff = diff_exif + diff_gps
 
             # if non-zero diff, ask user to confirm tag write
             if len(diff) > 0:
@@ -488,10 +517,13 @@ if __name__ == '__main__':
 
                 if not args.dry_run and yes_or_no("Write this metadata to the file?"):
 
-                    # Apply the diff to the image
-                    for key, value in diff.items():
-                        image.set(key, value)
+                    # Apply the changes to the image exif
+                    image_exif = image_exif | api_exif
+                    image_gps = image_gps | api_gps
 
-                    # do the write
-                    with open(file, 'wb') as image_file:
-                        image_file.write(image.get_file())
+                    # Reconstruct the metadata for writing
+                    image_metadata = {"Exif": image_exif, "GPS":image_gps}
+                    exif_bytes = piexif.dump(image_metadata)
+
+                    # Do the write
+                    piexif.insert(exif_bytes, file)

@@ -7,8 +7,8 @@ authors = ["Jonathan Gazeley <me@jonathangazeley.com>"]
 [tool.poetry.dependencies]
 python = "^3.9"
 requests = "^2.26.0"
-exif = "^1.3.2"
 uuid = "^1.30"
+piexif = "^1.1.3"
 
 [tool.poetry.dev-dependencies]
 
