@@ -12,7 +12,7 @@ def create_config(path):
     """
     config = configparser.ConfigParser()
 
-    with open(path, "w") as config_file:
+    with open(path, "w",  encoding="utf-8") as config_file:
         config.write(config_file)
 
 
