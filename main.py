@@ -4,13 +4,14 @@ CameraHub Tagger
 
 import argparse
 import sys
-from fnmatch import filter
+import os
+from fnmatch import filter as fnfilter
+import pprint
 from exif import Image
 from requests.models import HTTPError
-import pprint
-from funcs import *
-from config import *
-from api import *
+from funcs import is_valid_uuid, guess_frame, prompt_frame, api2exif, diff_tags, yes_or_no
+from config import get_setting
+from api import get_negative, get_scan, create_scan, test_credentials
 
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
@@ -60,7 +61,7 @@ if __name__ == '__main__':
         # recursive search here
         pass
     else:
-        files = filter(os.listdir('.'), '*.[Jj][Pp][Gg]')
+        files = fnfilter(os.listdir('.'), '*.[Jj][Pp][Gg]')
 
     if len(files) == 0:
         print("No files found")

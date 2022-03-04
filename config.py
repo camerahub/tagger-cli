@@ -55,7 +55,7 @@ def get_config(path, section):
     """
     # Create the config file if necessary
     if not os.path.exists(path):
-        create_config(path, section)
+        create_config(path)
 
     config = configparser.ConfigParser()
     config.read(path)
@@ -64,7 +64,7 @@ def get_config(path, section):
     if not config.has_section(section):
         create_profile(path, config, section)
         config.read(path)
-    
+
     return config
 
 

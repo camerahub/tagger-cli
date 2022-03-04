@@ -138,8 +138,18 @@ disable=print-statement,
         deprecated-sys-function,
         exception-escape,
         comprehension-escape,
+        line-too-long,
+        fixme,
 
-#        line-too-long,
+      # These will need to be removed before merging
+      raise-missing-from,
+      pointless-statement,
+      broad-except,
+      bare-except,
+      invalid-name,
+
+
+
 #        missing-docstring,
 #        no-init,
 #        too-many-lines,
