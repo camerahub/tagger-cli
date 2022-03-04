@@ -25,21 +25,21 @@ def create_profile(l_path, l_config, l_section):
 
     try:
         default = "https://camerahub.info/api"
-        l_server = input("Enter CameraHub server for profile '{}' (default {}): ".format(l_section, default)) or default
+        l_server = input(f"Enter CameraHub server for profile '{l_section}' (default {default}): ") or default
     except Exception as error:
         print('ERROR', error)
     else:
         l_config.set(l_section, "server", l_server)
 
     try:
-        l_username = input("Enter CameraHub username for {}: ".format(l_server))
+        l_username = input(f"Enter CameraHub username for {l_server}: ")
     except Exception as error:
         print('ERROR', error)
     else:
         l_config.set(l_section, "username", l_username)
 
     try:
-        l_password = getpass.getpass(prompt="Enter CameraHub password for {}: ".format(l_server))
+        l_password = getpass.getpass(prompt=f"Enter CameraHub password for {l_server}: ")
     except Exception as error:
         print('ERROR', error)
     else:

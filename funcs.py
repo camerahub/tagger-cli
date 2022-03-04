@@ -120,8 +120,8 @@ def prompt_frame(filename):
     At the moment these questions are asked sequentially
     TODO: be able to parse compact film/frame format
     """
-    l_film = input("Enter film ID for {}: ".format(filename))
-    l_frame = input("Enter frame ID for {}: ".format(l_film))
+    l_film = input(f"Enter film ID for {filename}: ")
+    l_frame = input(f"Enter frame ID for {l_film}: ")
     return (l_film, l_frame)
 
 
