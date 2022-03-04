@@ -45,7 +45,7 @@ def create_profile(l_path, l_config, l_section):
     else:
         l_config.set(l_section, "password", l_password)
 
-    with open(l_path, "w") as config_file:
+    with open(l_path, "w", encoding="utf-8") as config_file:
         l_config.write(config_file)
 
 
