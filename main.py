@@ -112,7 +112,7 @@ if __name__ == '__main__':
 
             # Create Scan record associated with the Negative
             try:
-                scan = create_scan(negative, file)
+                scan = create_scan(negative, file, server, auth)
             except:
                 print(f"Couldn't generate Scan ID for Negative {negative}")
                 continue
