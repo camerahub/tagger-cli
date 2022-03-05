@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "tagger_cli"
+name = "tagger-cli"
 version = "0.1.0"
 description = "EXIF tagger for CameraHub"
 authors = ["Jonathan Gazeley <me@jonathangazeley.com>"]
