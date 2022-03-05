@@ -209,7 +209,7 @@ def api2gps(l_apidata):
     for row in data:
         # The value is the last member of the list
         value = row.pop()
-    
+
         # If the value is not None, build its key by concating the path
         if value is not None:
             key = ('.'.join(row))

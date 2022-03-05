@@ -136,7 +136,7 @@ if __name__ == '__main__':
                 image_exif[key] = value
             image_gps = {}
             for key, value in image_metadata['GPS']:
-                image_gps[key] = value            
+                image_gps[key] = value
 
             diff_exif = diff_tags(image_exif, api_exif)
             diff_gps = diff_tags(image_gps, api_gps)
@@ -150,13 +150,13 @@ if __name__ == '__main__':
 
             if not args.dry_run and yes_or_no("Write this metadata to the file?"):
 
-                    # Apply the changes to the image exif
-                    image_exif = image_exif | api_exif
-                    image_gps = image_gps | api_gps
+                # Apply the changes to the image exif
+                image_exif = image_exif | api_exif
+                image_gps = image_gps | api_gps
 
-                    # Reconstruct the metadata for writing
-                    image_metadata = {"Exif": image_exif, "GPS":image_gps}
-                    exif_bytes = piexif.dump(image_metadata)
+                # Reconstruct the metadata for writing
+                image_metadata = {"Exif": image_exif, "GPS":image_gps}
+                exif_bytes = piexif.dump(image_metadata)
 
-                    # Do the write
-                    piexif.insert(exif_bytes, file)
+                # Do the write
+                piexif.insert(exif_bytes, file)
