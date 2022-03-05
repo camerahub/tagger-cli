@@ -11,7 +11,7 @@ This app will be available on PyPI when it is finished.
 
 ### `-r --recursive`
 
-Search for scans recursively
+Search for scans recursively from current directory
 
 ### `-a --auto`
 
@@ -27,4 +27,8 @@ Don't write any tags
 
 ### `-f --file`
 
-Image file to be tagged
+Image file to be tagged. If not supplied, tag everything in the current directory.
+
+### `-p' --profile`
+
+CameraHub connection profile. Default: `prod`.
