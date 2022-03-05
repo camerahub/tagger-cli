@@ -4,13 +4,14 @@ CameraHub Tagger
 
 import argparse
 import sys
-from fnmatch import filter
+import os
+from fnmatch import filter as fnfilter
+import pprint
 from exif import Image
 from requests.models import HTTPError
-import pprint
-from funcs import *
-from config import *
-from api import *
+from funcs import is_valid_uuid, guess_frame, prompt_frame, api2exif, diff_tags, yes_or_no
+from config import get_setting
+from api import get_negative, get_scan, create_scan, test_credentials
 
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
@@ -60,7 +61,7 @@ if __name__ == '__main__':
         # recursive search here
         pass
     else:
-        files = filter(os.listdir('.'), '*.[Jj][Pp][Gg]')
+        files = fnfilter(os.listdir('.'), '*.[Jj][Pp][Gg]')
 
     if len(files) == 0:
         print("No files found")
@@ -69,7 +70,7 @@ if __name__ == '__main__':
     # foreach found photo:
     # read exif data, check for camerahub scan tag
     for file in files:
-        print("Processing image {}".format(file))
+        print(f"Processing image {file}")
 
         # Extract exif data from file
         with open(file, 'rb') as image_file:
@@ -78,21 +79,21 @@ if __name__ == '__main__':
         if image.has_exif is True and image.get("image_unique_id") and is_valid_uuid(image.image_unique_id):
             # check for presence of custom exif tag for camerahub
             # already has a uuid scan id
-            print("{} already has an EXIF scan ID".format(file))
+            print(f"{file} already has an EXIF scan ID")
             scan = image.get("image_unique_id")
         else:
             # need to match it with a neg/print and generate a scan id
-            print("{} does not have an EXIF scan ID".format(file))
+            print(f"{file} does not have an EXIF scan ID")
 
             # else prompt user to identify the scan
             #	guess film/frame from filename
             guess = guess_frame(file)
             if guess:
                 film, frame = guess
-                print("Deduced Film ID {} and Frame {}".format(film, frame))
+                print(f"Deduced Film ID {film} and Frame {frame}")
 
             else:
-                print("{} does not match FILM-FRAME notation".format(file))
+                print(f"{file} does not match FILM-FRAME notation")
                 # prompt user for film/frame
                 #	either accept film/frame or just film then prompt frame
                 film, frame = prompt_frame(file)
@@ -104,27 +105,27 @@ if __name__ == '__main__':
                 print(err)
                 continue
             except:
-                print("Couldn't find Negative ID for {}".format(file))
+                print(f"Couldn't find Negative ID for {file}")
                 continue
             else:
-                print("{} corresponds to Negative {}".format(file, negative))
+                print(f"{file} corresponds to Negative {negative}")
 
             # Create Scan record associated with the Negative
             try:
-                scan = create_scan(negative, file)
+                scan = create_scan(negative, file, server, auth)
             except:
-                print("Couldn't generate Scan ID for Negative {}".format(negative))
+                print(f"Couldn't generate Scan ID for Negative {negative}")
                 continue
             else:
-                print("Created new Scan ID {}".format(scan))
+                print(f"Created new Scan ID {scan}")
 
         # Lookup extended Scan details in API
         try:
             apidata = get_scan(scan, server, auth)
         except:
-            print("Couldn't retrieve data for Scan {}".format(scan))
+            print(f"Couldn't retrieve data for Scan {scan}")
         else:
-            print("Got data for Scan {}".format(scan))
+            print(f"Got data for Scan {scan}")
 
         # mangle CameraHub format tags into EXIF format tags
         exifdata = api2exif(apidata)

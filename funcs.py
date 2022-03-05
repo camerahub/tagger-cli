@@ -6,15 +6,15 @@ from decimal import Decimal
 from uuid import UUID
 import re
 
-def deg_to_dms(deg):
+def deg_to_dms(degrees):
     """
     Convert from decimal degrees to degrees, minutes, seconds.
     """
-    deg = Decimal(deg)
-    m, s = divmod(abs(deg)*3600, 60)
-    d, m = divmod(m, 60)
-    d, m = int(d), int(m)
-    return d, m, s
+    degrees = Decimal(degrees)
+    mins, secs = divmod(abs(degrees)*3600, 60)
+    degs, mins = divmod(mins, 60)
+    degs, mins = int(degs), int(mins)
+    return degs, mins, secs
 
 
 def gps_ref(direction, angle):
@@ -55,7 +55,7 @@ def walk(indict, pre=None):
             if isinstance(value, dict):
                 for d in walk(value, pre + [key]):
                     yield d
-            elif isinstance(value, list) or isinstance(value, tuple):
+            elif isinstance(value, (list, tuple)):
                 for v in value:
                     for d in walk(v, pre + [key]):
                         yield d
@@ -120,8 +120,8 @@ def prompt_frame(filename):
     At the moment these questions are asked sequentially
     TODO: be able to parse compact film/frame format
     """
-    l_film = input("Enter film ID for {}: ".format(filename))
-    l_frame = input("Enter frame ID for {}: ".format(l_film))
+    l_film = input(f"Enter film ID for {filename}: ")
+    l_frame = input(f"Enter frame ID for {l_film}: ")
     return (l_film, l_frame)
 
 
@@ -182,7 +182,7 @@ def api2exif(l_apidata):
     for row in data:
         # The value is the last member of the list
         value = row.pop()
-    
+
         # If the value is not None, build its key by concating the path
         if value is not None:
             key = ('.'.join(row))

@@ -2,9 +2,9 @@
 Functions which interact with the CameraHub API
 """
 
-import requests
-import json
 from datetime import date
+import json
+import requests
 
 def test_credentials(l_server, l_auth):
     """
