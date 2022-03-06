@@ -75,7 +75,7 @@ if __name__ == '__main__':
         # Extract all metadata from file
         image_metadata = piexif.load(file)
 
-        if image_metadata and image_metadata['Exif']['ImageUniqueID'] and is_valid_uuid(image_metadata['Exif']['ImageUniqueID']):
+        if image_metadata and image_metadata['Exif'] and image_metadata['Exif']['ImageUniqueID'] and is_valid_uuid(image_metadata['Exif']['ImageUniqueID']):
             # check for presence of custom exif tag for camerahub
             # already has a uuid scan id
             print(f"{file} already has an EXIF scan ID")
