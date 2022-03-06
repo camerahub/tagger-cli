@@ -137,7 +137,7 @@ def apitag2exiftag(apitag):
 
     # Static mapping of tags
     mapping = {
-        'uuid': 'image_unique_id',
+        'uuid': 'ImageUniqueID',
         'negative.film.camera.cameramodel.manufacturer.name': 'Make',
         'negative.film.camera.cameramodel.lens_manufacturer': 'LensMake',
         'negative.film.camera.cameramodel.model': 'Model',
