@@ -52,7 +52,7 @@ def get_scan(l_scan, l_server, l_auth):
     Get all details about a scan record in CameraHub
     """
     payload = {'uuid': l_scan}
-    url = l_server+'/scan/'
+    url = l_server+'/exif/'
     response = requests.get(url, auth=l_auth, params=payload)
     response.raise_for_status()
 
@@ -68,7 +68,8 @@ def get_negative(l_film, l_frame, l_server, l_auth):
     Find the negative slug for a negative based on its film slug and frame
     """
     # TODO: complete this function with API lookup
-    payload = {'film': l_film, 'frame': l_frame}
+    slug = f"{l_film}.{l_frame}"
+    payload = {'slug': slug}
     url = l_server+'/negative/'
     response = requests.get(url, auth=l_auth, params=payload)
     response.raise_for_status()

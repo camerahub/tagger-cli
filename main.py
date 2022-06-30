@@ -7,9 +7,9 @@ import sys
 import os
 from fnmatch import filter as fnfilter
 import pprint
-from exif import Image
+import piexif
 from requests.models import HTTPError
-from funcs import is_valid_uuid, guess_frame, prompt_frame, api2exif, diff_tags, yes_or_no
+from funcs import encode_ifd, is_valid_uuid, guess_frame, prompt_frame, diff_tags, yes_or_no, sort_tags, encode_exif, encode_gps
 from config import get_setting
 from api import get_negative, get_scan, create_scan, test_credentials
 
@@ -72,15 +72,14 @@ if __name__ == '__main__':
     for file in files:
         print(f"Processing image {file}")
 
-        # Extract exif data from file
-        with open(file, 'rb') as image_file:
-            image = Image(image_file)
+        # Extract all metadata from file
+        image_metadata = piexif.load(file)
 
-        if image.has_exif is True and image.get("image_unique_id") and is_valid_uuid(image.image_unique_id):
+        if image_metadata and image_metadata['Exif'] and image_metadata['Exif']['ImageUniqueID'] and is_valid_uuid(image_metadata['Exif']['ImageUniqueID']):
             # check for presence of custom exif tag for camerahub
             # already has a uuid scan id
             print(f"{file} already has an EXIF scan ID")
-            scan = image.get("image_unique_id")
+
         else:
             # need to match it with a neg/print and generate a scan id
             print(f"{file} does not have an EXIF scan ID")
@@ -127,12 +126,25 @@ if __name__ == '__main__':
         else:
             print(f"Got data for Scan {scan}")
 
-        # mangle CameraHub format tags into EXIF format tags
-        exifdata = api2exif(apidata)
+            # sort tags from the API into EXIF and GPS tags
+            api_ifd, api_exif, api_gps = sort_tags(apidata)
 
-        # prepare diff of tags
-        existing = image.get_all()
-        diff = diff_tags(existing, exifdata)
+            # prepare tags already in the image
+            image_ifd = {}
+            for key, value in image_metadata['0th']:
+                image_ifd[key] = value
+            image_exif = {}
+            for key, value in image_metadata['Exif']:
+                image_exif[key] = value
+            image_gps = {}
+            for key, value in image_metadata['GPS']:
+                image_gps[key] = value
+
+            # Build diff of tags from the API vs from the image
+            diff_ifd = diff_tags(image_ifd, api_ifd)
+            diff_exif = diff_tags(image_exif, api_exif)
+            diff_gps = diff_tags(image_gps, api_gps)
+            diff = diff_ifd | diff_exif | diff_gps
 
         # if non-zero diff, ask user to confirm tag write
         if len(diff) > 0:
@@ -142,10 +154,30 @@ if __name__ == '__main__':
 
             if not args.dry_run and yes_or_no("Write this metadata to the file?"):
 
-                # Apply the diff to the image
-                for key, value in diff.items():
-                    image.set(key, value)
+                # Apply the changes to the image exif
+                image_ifd = image_ifd | api_ifd
+                image_exif = image_exif | api_exif
+                image_gps = image_gps | api_gps
 
-                # do the write
-                with open(file, 'wb') as image_file:
-                    image_file.write(image.get_file())
+            #    encoded_ifd = encode_ifd(image_ifd)
+            #    encoded_exif = encode_exif(image_exif)
+            #    encoded_gps = encode_gps(image_gps)
+
+                # Reconstruct the metadata for writing
+            #    image_metadata = {"0th": encoded_ifd, "Exif": encoded_exif, "GPS": encoded_gps}
+                # Test each chunk before appending, because empty chunks break piexif
+                image_metadata = {}
+                if image_ifd:
+                    image_metadata["0th"] = encode_ifd(image_ifd)
+
+                if image_exif:
+                    image_metadata["Exif"] = encode_exif(image_exif)
+
+                if image_gps:
+                    image_metadata['GPS'] = encode_gps(image_gps)
+
+                pp.pprint(image_metadata)
+                exif_bytes = piexif.dump(image_metadata)
+
+                # Do the write
+                piexif.insert(exif_bytes, file)
