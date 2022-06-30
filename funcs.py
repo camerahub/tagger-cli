@@ -5,6 +5,7 @@ Utility functions with few external dependencies
 from decimal import Decimal
 from uuid import UUID
 import re
+import piexif
 
 def deg_to_dms(degrees):
     """
@@ -125,101 +126,101 @@ def prompt_frame(filename):
     return (l_film, l_frame)
 
 
-def apitag2exiftag(apitag):
+def sort_tags(l_apidata):
     """
-    When given a CameraHub API tag, flattened and formatted with dots,
-    map it to its equivalent EXIF tag, or return None
-    https://exif.readthedocs.io/en/latest/api_reference.html#image-attributes
+    Given a list of tags from the API, sort them into EXIF tags
+    and GPS tags, and return two lists
     """
 
-    #'Lens',
-    #'FNumber'
+    # Supported tags
+    valid_ifd_tags = ['Make', 'Model', 'Copyright', 'ImageDescription', 'Artist']
+    valid_exif_tags = ['ImageUniqueID', 'BodySerialNumber', 'UserComment', 'FocalLength', 'FocalLengthIn35mmFilm', 'ShutterSpeedValue',  'ISOSpeed',  'LensSerialNumber', 'LensModel', 'LensMake', 'FNumber', 'MaxApertureValue', 'DateTimeOriginal', 'ExposureProgram', 'MeteringMode', 'Flash']
+    valid_gps_tags = ['GPSLatitude', 'GPSLongitude']
 
-    # Static mapping of tags
-    mapping = {
-        'uuid': 'ImageUniqueID',
-        'negative.film.camera.cameramodel.manufacturer.name': 'Make',
-        'negative.film.camera.cameramodel.lens_manufacturer': 'LensMake',
-        'negative.film.camera.cameramodel.model': 'Model',
-        'negative.film.camera.serial': 'BodySerialNumber',
-        'negative.film.exposed_at': 'ISOSpeed',
-        'negative.lens.lensmodel.model': 'LensModel',
-        'negative.lens.lensmodel.manufacturer.name': 'LensMake',
-        'negative.exposure_program': 'ExposureProgram',
-        'negative.metering_mode': 'MeteringMode',
-        'negative.caption': 'ImageDescription',
-        'negative.date': 'DateTimeOriginal',
-        'negative.aperture': 'FNumber',
-        'negative.notes': 'UserComment',
-        'negative.focal_length': 'FocalLength',
-        'negative.flash': 'Flash',
-        'negative.photographer.name': 'Artist',
-        'negative.lens.serial': 'LensSerialNumber',
-        'negative.shutter_speed': 'ShutterSpeedValue',
-        'negative.lens.lensmodel.max_aperture': 'MaxApertureValue',
-        'negative.copyright': 'Copyright',
-        'negative.focal_length_35mm': 'FocalLengthIn35mmFilm',
+    l_ifddata = {}
+    l_exifdata = {}
+    l_gpsdata = {}
+
+    for (tag, value) in l_apidata.items():
+        if (value is None or value == ''):
+            continue
+
+        if tag in valid_ifd_tags:
+            l_ifddata[tag] = value
+        elif tag in valid_exif_tags:
+            l_exifdata[tag] = value
+        elif tag in valid_gps_tags:
+            l_gpsdata[tag] = value
+
+    return l_ifddata, l_exifdata, l_gpsdata
+
+
+def encode_ifd(l_apidata):
+    """
+    Take a dict of tags and map them to Piexif properties
+    """
+
+    zeroth_ifd = {
+        piexif.ImageIFD.Make: l_apidata.get('Make'),
+        piexif.ImageIFD.Model: l_apidata.get('Model'),
+        piexif.ImageIFD.Copyright: l_apidata.get('Copyright'),
+        piexif.ImageIFD.ImageDescription: l_apidata.get('ImageDescription'),
+        piexif.ImageIFD.Artist: l_apidata.get('Artist'),
     }
 
-    exiftag = mapping.get(apitag)
-    return exiftag
+    sanitised = {}
+    for (tag, value) in zeroth_ifd.items():
+        if value:
+            sanitised[tag] = value
+
+    return sanitised
 
 
-def api2exif(l_apidata):
+def encode_exif(l_apidata):
     """
-    Reformat CameraHub format tags into EXIF format tags.
-    CameraHub tags from the API will be JSON-formatted whereas EXIF
-    tags are formatted as a simple dictionary. This will also translate
-    tags that have different names.
+    Take a dict of tags and map them to Piexif properties
     """
-    # Retrieve the flattened walk data as a list of lists
-    data = walk(l_apidata)
 
-    # Make a new dictionary of EXIF data to return
-    l_exifdata = {}
+    exif_ifd = {
+        piexif.ExifIFD.ImageUniqueID: l_apidata.get('ImageUniqueID'),
+        piexif.ExifIFD.BodySerialNumber: l_apidata.get('BodySerialNumber'),
+        piexif.ExifIFD.UserComment: l_apidata.get('UserComment'),
+        piexif.ExifIFD.FocalLength: l_apidata.get('FocalLength'),
+        piexif.ExifIFD.FocalLengthIn35mmFilm: l_apidata.get('FocalLengthIn35mmFilm'),
+        piexif.ExifIFD.ShutterSpeedValue: l_apidata.get('ShutterSpeedValue'),
+        piexif.ExifIFD.ISOSpeed: l_apidata.get('ISOSpeed'),
+        piexif.ExifIFD.LensSerialNumber: l_apidata.get('LensSerialNumber'),
+        piexif.ExifIFD.LensModel: l_apidata.get('LensModel'),
+        piexif.ExifIFD.LensMake: l_apidata.get('LensMake'),
+        piexif.ExifIFD.FNumber: l_apidata.get('FNumber'),
+        piexif.ExifIFD.MaxApertureValue: l_apidata.get('MaxApertureValue'),
+        piexif.ExifIFD.DateTimeOriginal: l_apidata.get('DateTimeOriginal'),
+        piexif.ExifIFD.ExposureProgram: l_apidata.get('ExposureProgram'),
+        piexif.ExifIFD.MeteringMode: l_apidata.get('MeteringMode'),
+        piexif.ExifIFD.Flash: l_apidata.get('Flash'),
+    }
 
-    # Each item is one member of the nested structure
-    for row in data:
-        # The value is the last member of the list
-        value = row.pop()
+    sanitised = {}
+    for (tag, value) in exif_ifd.items():
+        if value:
+            sanitised[tag] = value
 
-        # If the value is not None, build its key by concating the path
-        if value is not None:
-            key = ('.'.join(row))
-
-            # Look up the EXIF name of the tag
-            exifkey = apitag2exiftag(key)
-            if exifkey is not None:
-                l_exifdata[exifkey] = value
-
-    return l_exifdata
+    return sanitised
 
 
-def api2gps(l_apidata):
+def encode_gps(l_apidata):
     """
-    Reformat CameraHub format tags into GPS format tags.
+    Take a dict of tags and map them to Piexif properties
     """
-    # Retrieve the flattened walk data as a list of lists
-    data = walk(l_apidata)
 
-    # Make a new dictionary of EXIF data to return
-    l_exifdata = {}
+    gps_ifd = {
+        piexif.GPSIFD.GPSLatitude: l_apidata.get('GPSLatitude'),
+        piexif.GPSIFD.GPSLongitude: l_apidata.get('GPSLongitude'),
+    }
 
-    # Each item is one member of the nested structure
-    for row in data:
-        # The value is the last member of the list
-        value = row.pop()
+    sanitised = {}
+    for (tag, value) in gps_ifd.items():
+        if value:
+            sanitised[tag] = value
 
-        # If the value is not None, build its key by concating the path
-        if value is not None:
-            key = ('.'.join(row))
-
-            # GPS tags that need computation
-            if key == 'negative.latitude':
-                l_exifdata['GPSLatitude'] = deg_to_dms(value)
-                l_exifdata['GPSLatitudeRef'] = gps_ref('latitude', value)
-            elif key == 'negative.longitude':
-                l_exifdata['GPSLongitude'] = deg_to_dms(value)
-                l_exifdata['GPSLongitudeRef'] = gps_ref('longitude', value)
-
-    return l_exifdata
+    return sanitised

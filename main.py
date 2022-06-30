@@ -9,7 +9,7 @@ from fnmatch import filter as fnfilter
 import pprint
 import piexif
 from requests.models import HTTPError
-from funcs import is_valid_uuid, guess_frame, prompt_frame, api2exif, diff_tags, yes_or_no, api2gps
+from funcs import encode_ifd, is_valid_uuid, guess_frame, prompt_frame, diff_tags, yes_or_no, sort_tags, encode_exif, encode_gps
 from config import get_setting
 from api import get_negative, get_scan, create_scan, test_credentials
 
@@ -126,11 +126,13 @@ if __name__ == '__main__':
         else:
             print(f"Got data for Scan {scan}")
 
-            # mangle CameraHub format tags into EXIF and GPS format tags
-            api_exif = api2exif(apidata)
-            api_gps = api2gps(apidata)
+            # sort tags from the API into EXIF and GPS tags
+            api_ifd, api_exif, api_gps = sort_tags(apidata)
 
-            # prepare diff of tags
+            # prepare tags already in the image
+            image_ifd = {}
+            for key, value in image_metadata['0th']:
+                image_ifd[key] = value
             image_exif = {}
             for key, value in image_metadata['Exif']:
                 image_exif[key] = value
@@ -138,9 +140,11 @@ if __name__ == '__main__':
             for key, value in image_metadata['GPS']:
                 image_gps[key] = value
 
+            # Build diff of tags from the API vs from the image
+            diff_ifd = diff_tags(image_ifd, api_ifd)
             diff_exif = diff_tags(image_exif, api_exif)
             diff_gps = diff_tags(image_gps, api_gps)
-            diff = diff_exif + diff_gps
+            diff = diff_ifd | diff_exif | diff_gps
 
         # if non-zero diff, ask user to confirm tag write
         if len(diff) > 0:
@@ -151,11 +155,28 @@ if __name__ == '__main__':
             if not args.dry_run and yes_or_no("Write this metadata to the file?"):
 
                 # Apply the changes to the image exif
+                image_ifd = image_ifd | api_ifd
                 image_exif = image_exif | api_exif
                 image_gps = image_gps | api_gps
 
+            #    encoded_ifd = encode_ifd(image_ifd)
+            #    encoded_exif = encode_exif(image_exif)
+            #    encoded_gps = encode_gps(image_gps)
+
                 # Reconstruct the metadata for writing
-                image_metadata = {"Exif": image_exif, "GPS":image_gps}
+            #    image_metadata = {"0th": encoded_ifd, "Exif": encoded_exif, "GPS": encoded_gps}
+                # Test each chunk before appending, because empty chunks break piexif
+                image_metadata = {}
+                if image_ifd:
+                    image_metadata["0th"] = encode_ifd(image_ifd)
+
+                if image_exif:
+                    image_metadata["Exif"] = encode_exif(image_exif)
+
+                if image_gps:
+                    image_metadata['GPS'] = encode_gps(image_gps)
+
+                pp.pprint(image_metadata)
                 exif_bytes = piexif.dump(image_metadata)
 
                 # Do the write
