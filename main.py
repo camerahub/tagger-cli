@@ -7,7 +7,7 @@ import sys
 import os
 from fnmatch import filter as fnfilter
 import pprint
-import piexif
+from PIL import Image
 from requests.models import HTTPError
 from funcs import encode_ifd, is_valid_uuid, guess_frame, prompt_frame, diff_tags, yes_or_no, sort_tags, encode_exif, encode_gps
 from config import get_setting
@@ -73,9 +73,13 @@ if __name__ == '__main__':
         print(f"Processing image {file}")
 
         # Extract all metadata from file
-        image_metadata = piexif.load(file)
+        #image_metadata = piexif.load(file)
+        im = Image.open(file)
+        exif = im.getexif()
 
-        if image_metadata and image_metadata['Exif'] and image_metadata['Exif']['ImageUniqueID'] and is_valid_uuid(image_metadata['Exif']['ImageUniqueID']):
+        #if image_metadata and image_metadata['Exif'] and image_metadata['Exif']['ImageUniqueID'] and is_valid_uuid(image_metadata['Exif']['ImageUniqueID']):
+        # 42016	A420	ImageUniqueID	Indicates an identifier assigned uniquely to each image.
+        if exif and exif['0xA420'] and is_valid_uuid(exif['0xA420']):
             # check for presence of custom exif tag for camerahub
             # already has a uuid scan id
             print(f"{file} already has an EXIF scan ID")
